@@ -8,11 +8,17 @@ def main() -> None:
     path = Path(__file__).with_name("run_backtest_v2.py")
     text = path.read_text(encoding="utf-8")
 
-    has_complete_row_validation = "if len(result) != 7:" in text
+    # Validate the actual runner semantics rather than relying on one exact
+    # formatting variant of the source code.
+    has_complete_row_validation = (
+        "len(result)!=7" in text
+        or "len(result) != 7" in text
+        or "len(result) !=7" in text
+    )
     has_normalized_error = "Normalized benchmark contains non-complete row" in text
     has_benchmark_path = "artifacts/backtest_v2/power655_benchmark.jsonl" in text
-    has_main_numbers = 'row["main_numbers"] = result[:6]' in text
-    has_legacy_raw_error = 'Invalid Power 6/55 row:' in text
+    has_main_numbers = 'row[\'main_numbers\']=result[:6]' in text or 'row["main_numbers"] = result[:6]' in text
+    has_legacy_raw_error = "Invalid Power 6/55 row:" in text
 
     print(f"BACKTEST_V2_COMMIT={sha}")
     print(f"BACKTEST_V2_BRANCH={ref}")
