@@ -33,8 +33,20 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install pandas numpy polars pytest
-      - name: Validate raw Power 6/55 data
-        run: python -m src.machine_learning.validate_power655_data
+      - name: Normalize Power 6/55 data
+        run: python -m src.machine_learning.normalize_power655
+      - name: Verify normalized benchmark dataset
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("artifacts/backtest_v2/power655_benchmark.jsonl")
+          rows = [json.loads(x) for x in p.read_text().splitlines() if x.strip()]
+          assert len(rows) == 1381, len(rows)
+          assert all(len(r["result"]) == 7 for r in rows)
+          print(f"BENCHMARK_ROWS={len(rows)}")
+          print("ALL_ROWS_HAVE_7_NUMBERS=True")
+          PY
       - name: Verify runner identity
         run: python -m src.machine_learning.runner_identity
       - name: Run prize and leakage tests
