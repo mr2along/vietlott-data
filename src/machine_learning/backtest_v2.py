@@ -56,6 +56,13 @@ class BacktestSummary:
     first_prize_hits: int
     second_prize_hits: int
     third_prize_hits: int
+    jackpot1_gain: int
+    jackpot2_gain: int
+    first_prize_gain: int
+    second_prize_gain: int
+    third_prize_gain: int
+    reconciled_gain: int
+    gain_reconciled: bool
     zero_match: int
     one_match: int
     two_match: int
@@ -144,6 +151,16 @@ def summarize(
             elif evaluated.main_matches == 3:
                 third += 1
 
+    jackpot1_gain = jp1 * prizes.jackpot1
+    jackpot2_gain = jp2 * prizes.jackpot2
+    first_prize_gain = first * prizes.first
+    second_prize_gain = second * prizes.second
+    third_prize_gain = third * prizes.third
+    reconciled_gain = (
+        jackpot1_gain + jackpot2_gain + first_prize_gain
+        + second_prize_gain + third_prize_gain
+    )
+
     cost = total_tickets * prizes.ticket_price
     net = gain - cost
     roi = (net / cost * 100.0) if cost else 0.0
@@ -165,6 +182,13 @@ def summarize(
         first_prize_hits=first,
         second_prize_hits=second,
         third_prize_hits=third,
+        jackpot1_gain=jackpot1_gain,
+        jackpot2_gain=jackpot2_gain,
+        first_prize_gain=first_prize_gain,
+        second_prize_gain=second_prize_gain,
+        third_prize_gain=third_prize_gain,
+        reconciled_gain=reconciled_gain,
+        gain_reconciled=(gain == reconciled_gain),
         zero_match=exact[0],
         one_match=exact[1],
         two_match=exact[2],
