@@ -6,6 +6,9 @@ on:
     branches:
       - backtest-v2-power655
 
+env:
+  PYTHONPATH: src
+
 jobs:
   backtest-v2:
     runs-on: ubuntu-latest
@@ -23,5 +26,3 @@ jobs:
         run: python -m pytest src/machine_learning/tests/test_backtest_v2.py -q
       - name: Run Backtest V2 benchmark
         run: python -m src.machine_learning.run_backtest_v2
-
-# Trigger a clean CI run after the workflow was made ready for review.
