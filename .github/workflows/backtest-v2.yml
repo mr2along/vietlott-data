@@ -17,6 +17,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Print checkout identity
+        run: |
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_HEAD_REF=$GITHUB_HEAD_REF"
+          git rev-parse HEAD
+          git status --short
+      - name: Verify runner source before Python
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/machine_learning/run_backtest_v2.py')
+          text = p.read_text(encoding='utf-8')
+          print('run_backtest_v2.py bytes:', p.stat().st_size)
+          print('contains skip for invalid rows:', 'if len(result) != 7:' in text)
+          print('contains legacy invalid-row exception:', 'raise ValueError(f"Invalid Power 6/55 row:' in text)
+          PY
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
