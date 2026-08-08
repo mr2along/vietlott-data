@@ -1,16 +1,8 @@
-"""Run the corrected Power 6/55 benchmark.
-
-Usage from repository root:
-    python -m src.machine_learning.run_backtest_v2
-
-Historical files in this repository contain both normal 7-number Power 6/55
-rows (6 main numbers + special number) and legacy 6-number rows. Legacy rows
-are retained as historical draws with no special number, rather than causing
-the benchmark to abort.
-"""
+"""Run the corrected Power 6/55 benchmark on normalized complete draws."""
 from __future__ import annotations
 
 import json
+import os
 import random
 from pathlib import Path
 
@@ -19,13 +11,7 @@ import pandas as pd
 
 from .backtest_v2 import PrizeConfig
 from .backtest_v2_walkforward import walk_forward
-from .strategies import (
-    MarkovChainStrategy,
-    PairFrequencyStrategy,
-    PatternStrategy,
-    RandomModel,
-)
-
+from .strategies import MarkovChainStrategy, PairFrequencyStrategy, PatternStrategy, RandomModel
 
 PRIZES = PrizeConfig(
     jackpot1=30_000_000_000,
@@ -47,10 +33,10 @@ def load_rows(path: Path) -> list[dict]:
             row = json.loads(line)
             row["date"] = pd.to_datetime(row["date"]).date()
             result = [int(x) for x in row["result"]]
-            if len(result) not in (6, 7):
-                raise ValueError(f"Invalid Power 6/55 row: {row}")
+            if len(result) != 7:
+                raise ValueError(f"Normalized benchmark contains non-complete row: {row}")
             row["result"] = result
-            row["special"] = result[6] if len(result) == 7 else None
+            row["special"] = result[6]
             row["main_numbers"] = result[:6]
             rows.append(row)
     return rows
@@ -64,8 +50,10 @@ def factory(cls, **kwargs):
 
 def main() -> None:
     root = Path(__file__).resolve().parents[2]
-    data_path = root / "data" / "power655.jsonl"
+    data_path = Path(os.environ.get("POWER655_BENCHMARK_PATH", root / "artifacts/backtest_v2/power655_benchmark.jsonl"))
     rows = load_rows(data_path)
+    if len(rows) != 1381:
+        raise ValueError(f"Expected 1381 normalized draws, got {len(rows)}")
 
     factories = {
         "Random": factory(RandomModel),
