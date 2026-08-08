@@ -1,58 +1,55 @@
-"""Walk-forward runner for the Power 6/55 Backtest V2.
-
-The runner intentionally feeds each strategy only the six main numbers from
-historical results. It evaluates 30 independently generated tickets against
-the next historical draw using :mod:`backtest_v2`.
-"""
+"""Leakage-safe walk-forward runner for Power 6/55 Backtest V2."""
 from __future__ import annotations
 
 import random
-from datetime import date
+from dataclasses import dataclass
 from typing import Any, Callable, Sequence
 
 from .backtest_v2 import PrizeConfig, BacktestSummary, summarize
 
 
-def _main_only_rows(rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
-    cleaned: list[dict[str, Any]] = []
-    for row in rows:
-        result = row["result"]
-        if isinstance(result, str):
-            result = [int(x) for x in result.strip("[]").split(",") if x.strip()]
-        if len(result) != 7:
-            continue
-        cleaned.append({**row, "result": list(map(int, result[:6])), "special": int(result[6])})
-    return cleaned
+@dataclass(frozen=True)
+class Draw:
+    date: Any
+    main: tuple[int, ...]
+    special: int
 
 
-def run_strategy(
+def parse_draw(row: dict[str, Any]) -> Draw:
+    result = row["result"]
+    if isinstance(result, str):
+        import ast
+        result = ast.literal_eval(result)
+    values = tuple(int(x) for x in result)
+    if len(values) != 7:
+        raise ValueError(f"Expected 7 result numbers, got {len(values)}")
+    return Draw(row["date"], values[:6], values[6])
+
+
+def walk_forward(
     name: str,
-    strategy_factory: Callable[[Any], Any],
-    df: Any,
-    results: Sequence[Sequence[int]],
+    rows: Sequence[dict[str, Any]],
+    strategy_factory: Callable[[Sequence[dict[str, Any]], Any], Any],
     tickets_per_draw: int = 30,
     seed: int = 0,
     prizes: PrizeConfig | None = None,
+    min_history: int = 1,
 ) -> BacktestSummary:
-    """Run a strategy in walk-forward mode.
-
-    ``strategy_factory`` receives the history dataframe available before the
-    current target draw. ``predict()`` is called once per ticket, preserving
-    the original strategy randomness while preventing future-data leakage.
-    """
+    """Generate tickets for each target using strictly earlier draws only."""
     prizes = prizes or PrizeConfig(tickets_per_draw=tickets_per_draw)
+    draws = [parse_draw(r) for r in rows]
+    draws.sort(key=lambda d: d.date)
     random.seed(seed)
-    tickets_by_draw: list[list[Sequence[int]]] = []
-    evaluation_results: list[Sequence[int]] = []
 
-    # This function is a reusable adapter. Concrete repository integrations
-    # can supply a dataframe slice and factory while retaining the corrected
-    # 6+1 evaluation logic.
-    for i in range(1, len(results)):
-        history = df.iloc[:i] if hasattr(df, "iloc") else df[:i]
-        strategy = strategy_factory(history)
-        draw_tickets = [strategy.predict(date.today()) for _ in range(tickets_per_draw)]
-        tickets_by_draw.append(draw_tickets)
-        evaluation_results.append(list(results[i]) + [0])
+    evaluation_results: list[Sequence[int]] = []
+    tickets_by_draw: list[list[Sequence[int]]] = []
+
+    for i in range(min_history, len(draws)):
+        target = draws[i]
+        history = [{"date": d.date, "result": list(d.main)} for d in draws[:i]]
+        strategy = strategy_factory(history, target.date)
+        tickets = [strategy.predict(target.date) for _ in range(tickets_per_draw)]
+        evaluation_results.append(list(target.main) + [target.special])
+        tickets_by_draw.append(tickets)
 
     return summarize(name, evaluation_results, tickets_by_draw, prizes)
