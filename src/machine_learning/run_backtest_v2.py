@@ -1,11 +1,4 @@
-"""Run the corrected Power 6/55 benchmark.
-
-Usage from repository root:
-    python -m src.machine_learning.run_backtest_v2
-
-The benchmark uses the repository's JSONL data, strips the special number
-from strategy history, and scores it only against the target draw.
-"""
+"""Run the corrected Power 6/55 benchmark and export an auditable report."""
 from __future__ import annotations
 
 import json
@@ -15,57 +8,35 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .backtest_v2 import PrizeConfig
+from .backtest_v2 import PrizeConfig, summary_dict
 from .backtest_v2_walkforward import walk_forward
-from .strategies import (
-    MarkovChainStrategy,
-    PairFrequencyStrategy,
-    PatternStrategy,
-    RandomModel,
-)
-
+from .strategies import MarkovChainStrategy, PairFrequencyStrategy, PatternStrategy, RandomModel
 
 PRIZES = PrizeConfig(
-    jackpot1=30_000_000_000,
-    jackpot2=3_000_000_000,
-    first=40_000_000,
-    second=500_000,
-    third=50_000,
-    ticket_price=10_000,
-    tickets_per_draw=30,
+    jackpot1=30_000_000_000, jackpot2=3_000_000_000, first=40_000_000,
+    second=500_000, third=50_000, ticket_price=10_000, tickets_per_draw=30,
 )
-
-# Power 6/55 is drawn on Tuesday, Thursday and Saturday.  The repository
-# contains one corrupted Mega 6/45 row dated Friday 2022-09-23 (id 00944)
-# with only six numbers.  It must not enter a Power 6/55 backtest.
-POWER_DRAW_WEEKDAYS = {1, 3, 5}  # Python: Tue, Thu, Sat
+POWER_DRAW_WEEKDAYS = {1, 3, 5}
 
 
 def load_rows(path: Path) -> list[dict]:
     rows: list[dict] = []
     skipped: list[tuple[str, str, str]] = []
     with path.open("r", encoding="utf-8") as fh:
-        for line_no, line in enumerate(fh, start=1):
+        for line in fh:
             if not line.strip():
                 continue
             row = json.loads(line)
             draw_date = pd.to_datetime(row["date"]).date()
             result = [int(x) for x in row["result"]]
-
-            # Reject malformed/non-Power records instead of aborting an
-            # otherwise valid historical dataset.  We log every skipped row
-            # so data cleaning remains auditable.
             if len(result) != 7:
                 skipped.append((str(row.get("id", "")), str(draw_date), f"{len(result)} numbers"))
                 continue
             if draw_date.weekday() not in POWER_DRAW_WEEKDAYS:
                 skipped.append((str(row.get("id", "")), str(draw_date), "not a Power 6/55 draw weekday"))
                 continue
-
-            row["date"] = draw_date
-            row["result"] = result
+            row["date"], row["result"] = draw_date, result
             rows.append(row)
-
     if skipped:
         print(f"Skipped {len(skipped)} invalid/non-Power rows:")
         for item in skipped:
@@ -82,6 +53,8 @@ def factory(cls, **kwargs):
 def main() -> None:
     root = Path(__file__).resolve().parents[2]
     data_path = root / "data" / "power655.jsonl"
+    output_dir = root / "artifacts" / "backtest_v2"
+    output_dir.mkdir(parents=True, exist_ok=True)
     rows = load_rows(data_path)
     if not rows:
         raise RuntimeError(f"No valid Power 6/55 rows found in {data_path}")
@@ -92,27 +65,39 @@ def main() -> None:
         "PairFrequency": factory(PairFrequencyStrategy, lookback_days=365),
         "Markov": factory(MarkovChainStrategy, lookback_days=365, smoothing=0.5),
     }
-
     summaries = []
     for name, make_strategy in factories.items():
         seed = 20260809
         random.seed(seed)
         np.random.seed(seed)
         summary = walk_forward(
-            name=name,
-            rows=rows,
-            strategy_factory=make_strategy,
-            tickets_per_draw=PRIZES.tickets_per_draw,
-            seed=seed,
-            prizes=PRIZES,
-            min_history=1,
+            name=name, rows=rows, strategy_factory=make_strategy,
+            tickets_per_draw=PRIZES.tickets_per_draw, seed=seed,
+            prizes=PRIZES, min_history=1,
         )
-        summaries.append(summary.__dict__)
+        summaries.append(summary_dict(summary))
 
     report = pd.DataFrame(summaries)
+    report.to_csv(output_dir / "strategy_summary.csv", index=False)
+    report.to_csv(output_dir / "prize_audit.csv", index=False)
+    with (output_dir / "strategy_summary.json").open("w", encoding="utf-8") as fh:
+        json.dump(summaries, fh, ensure_ascii=False, indent=2)
+    config = {
+        "data_path": str(data_path.relative_to(root)),
+        "valid_draws": len(rows),
+        "tickets_per_draw": PRIZES.tickets_per_draw,
+        "ticket_price": PRIZES.ticket_price,
+        "prizes": {"jackpot1": PRIZES.jackpot1, "jackpot2": PRIZES.jackpot2,
+                   "first": PRIZES.first, "second": PRIZES.second, "third": PRIZES.third},
+        "seed": 20260809,
+    }
+    with (output_dir / "config.json").open("w", encoding="utf-8") as fh:
+        json.dump(config, fh, ensure_ascii=False, indent=2)
+
     print(report.to_string(index=False))
     print("\nPrize configuration:")
     print(PRIZES)
+    print(f"\nAudit artifacts written to: {output_dir}")
 
 
 if __name__ == "__main__":
