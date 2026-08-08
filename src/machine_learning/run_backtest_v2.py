@@ -3,8 +3,10 @@
 Usage from repository root:
     python -m src.machine_learning.run_backtest_v2
 
-The benchmark uses the repository's JSONL data, strips the special number
-from strategy history, and scores it only against the target draw.
+Historical files in this repository contain both normal 7-number Power 6/55
+rows (6 main numbers + special number) and legacy 6-number rows. Legacy rows
+are retained as historical draws with no special number, rather than causing
+the benchmark to abort.
 """
 from __future__ import annotations
 
@@ -44,9 +46,12 @@ def load_rows(path: Path) -> list[dict]:
                 continue
             row = json.loads(line)
             row["date"] = pd.to_datetime(row["date"]).date()
-            row["result"] = [int(x) for x in row["result"]]
-            if len(row["result"]) != 7:
+            result = [int(x) for x in row["result"]]
+            if len(result) not in (6, 7):
                 raise ValueError(f"Invalid Power 6/55 row: {row}")
+            row["result"] = result
+            row["special"] = result[6] if len(result) == 7 else None
+            row["main_numbers"] = result[:6]
             rows.append(row)
     return rows
 
