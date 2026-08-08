@@ -57,6 +57,13 @@ def test_summary_exact_distribution_and_gain():
     assert summary.third_prize_hits == 1
 
     expected_gain = 30_000_000_000 + 3_000_000_000 + 40_000_000 + 500_000 + 50_000
+    assert summary.jackpot1_gain == 30_000_000_000
+    assert summary.jackpot2_gain == 3_000_000_000
+    assert summary.first_prize_gain == 40_000_000
+    assert summary.second_prize_gain == 500_000
+    assert summary.third_prize_gain == 50_000
+    assert summary.reconciled_gain == expected_gain
+    assert summary.gain_reconciled is True
     assert summary.gain == expected_gain
     assert summary.cost == 60_000
     assert summary.net_profit == expected_gain - 60_000
