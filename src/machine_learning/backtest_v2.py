@@ -53,6 +53,17 @@ class BacktestSummary:
     p6_pct: float
     jackpot1_hits: int
     jackpot2_hits: int
+    first_prize_hits: int
+    second_prize_hits: int
+    third_prize_hits: int
+    zero_match: int
+    one_match: int
+    two_match: int
+    three_match: int
+    four_match: int
+    five_main_only: int
+    five_plus_special: int
+    six_main: int
 
 
 def split_result(result: Sequence[int]) -> tuple[tuple[int, ...], int]:
@@ -89,15 +100,23 @@ def evaluate_ticket(ticket: Sequence[int], result: Sequence[int], prizes: PrizeC
     return TicketResult(main_matches, special_match, prize)
 
 
-def summarize(strategy: str, results: Iterable[Sequence[int]], tickets_by_draw: Iterable[Iterable[Sequence[int]]], prizes: PrizeConfig | None = None) -> BacktestSummary:
-    """Aggregate a strategy's walk-forward tickets and calculate ROI/statistics."""
+def summarize(
+    strategy: str,
+    results: Iterable[Sequence[int]],
+    tickets_by_draw: Iterable[Iterable[Sequence[int]]],
+    prizes: PrizeConfig | None = None,
+) -> BacktestSummary:
+    """Aggregate tickets, exact prize distribution, and ROI statistics."""
     prizes = prizes or PrizeConfig()
     total_draws = 0
     total_tickets = 0
     gain = 0
     match_sum = 0
     p3 = p4 = p5 = p6 = 0
-    jp1 = jp2 = 0
+    jp1 = jp2 = first = second = third = 0
+    exact = {i: 0 for i in range(7)}
+    five_plus_special = 0
+    five_main_only = 0
 
     for result, tickets in zip(results, tickets_by_draw):
         total_draws += 1
@@ -106,12 +125,24 @@ def summarize(strategy: str, results: Iterable[Sequence[int]], tickets_by_draw: 
             total_tickets += 1
             gain += evaluated.prize
             match_sum += evaluated.main_matches
+            exact[evaluated.main_matches] += 1
             p3 += evaluated.main_matches >= 3
             p4 += evaluated.main_matches >= 4
             p5 += evaluated.main_matches >= 5
             p6 += evaluated.main_matches == 6
-            jp1 += evaluated.main_matches == 6
-            jp2 += evaluated.main_matches == 5 and evaluated.special_match
+
+            if evaluated.main_matches == 6:
+                jp1 += 1
+            elif evaluated.main_matches == 5 and evaluated.special_match:
+                jp2 += 1
+                five_plus_special += 1
+            elif evaluated.main_matches == 5:
+                first += 1
+                five_main_only += 1
+            elif evaluated.main_matches == 4:
+                second += 1
+            elif evaluated.main_matches == 3:
+                third += 1
 
     cost = total_tickets * prizes.ticket_price
     net = gain - cost
@@ -131,6 +162,17 @@ def summarize(strategy: str, results: Iterable[Sequence[int]], tickets_by_draw: 
         p6_pct=(p6 / total_tickets * 100.0) if total_tickets else 0.0,
         jackpot1_hits=jp1,
         jackpot2_hits=jp2,
+        first_prize_hits=first,
+        second_prize_hits=second,
+        third_prize_hits=third,
+        zero_match=exact[0],
+        one_match=exact[1],
+        two_match=exact[2],
+        three_match=exact[3],
+        four_match=exact[4],
+        five_main_only=five_main_only,
+        five_plus_special=five_plus_special,
+        six_main=exact[6],
     )
 
 
