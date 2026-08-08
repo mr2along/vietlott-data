@@ -1,0 +1,28 @@
+name: Backtest V2
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - backtest-v2-power655
+
+env:
+  PYTHONPATH: src
+
+jobs:
+  backtest-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pandas numpy polars pytest
+      - name: Run prize and leakage tests
+        run: python -m pytest src/machine_learning/tests/test_backtest_v2.py -q
+      - name: Run Backtest V2 benchmark
+        run: python -m src.machine_learning.run_backtest_v2
