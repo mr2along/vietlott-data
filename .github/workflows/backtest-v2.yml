@@ -9,6 +9,9 @@ on:
 env:
   PYTHONPATH: src
 
+permissions:
+  contents: read
+
 jobs:
   backtest-v2:
     runs-on: ubuntu-latest
@@ -26,6 +29,10 @@ jobs:
         run: python -m pytest src/machine_learning/tests/test_backtest_v2.py -q
       - name: Run Backtest V2 benchmark
         run: python -m src.machine_learning.run_backtest_v2
+      - name: Verify audit files
+        run: |
+          test -d artifacts/backtest_v2
+          find artifacts/backtest_v2 -maxdepth 1 -type f -print
       - name: Upload Backtest V2 audit artifacts
         uses: actions/upload-artifact@v4
         with:
