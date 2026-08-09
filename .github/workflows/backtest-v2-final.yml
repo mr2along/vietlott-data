@@ -57,13 +57,15 @@ jobs:
         run: python -m src.machine_learning.random_audit
       - name: Run Random Monte Carlo baseline
         run: python -m src.machine_learning.random_monte_carlo
-      - name: Generate strategy significance screening
-        run: python -m src.machine_learning.strategy_significance
+      - name: Run raw Monte Carlo significance benchmark
+        run: python -m src.machine_learning.monte_carlo_significance
       - name: Verify audit files
         run: |
           test -d artifacts/backtest_v2
           test -s artifacts/backtest_v2/random_audit.json
-          test -s artifacts/backtest_v2/random_monte_carlo.json
+          test -s artifacts/backtest_v2/random_monte_carlo_raw.json
+          test -s artifacts/backtest_v2/random_monte_carlo_per_draw.json
+          test -s artifacts/backtest_v2/backtest_per_draw.json
           test -s artifacts/backtest_v2/strategy_significance.json
           find artifacts/backtest_v2 -maxdepth 1 -type f -print
       - name: Upload Backtest V2 audit artifacts
