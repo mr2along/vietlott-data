@@ -1,0 +1,82 @@
+name: Backtest V2 Final
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - backtest-v2-final
+  pull_request:
+    branches:
+      - main
+
+env:
+  PYTHONPATH: src
+
+permissions:
+  contents: read
+
+jobs:
+  backtest-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Print checkout identity
+        run: |
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "GITHUB_REF=$GITHUB_REF"
+          git rev-parse HEAD
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pandas numpy polars pytest scikit-learn
+      - name: Normalize Power 6/55 data
+        run: python -m src.machine_learning.normalize_power655
+      - name: Verify normalized benchmark dataset
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("artifacts/backtest_v2/power655_benchmark.jsonl")
+          rows = [json.loads(x) for x in p.read_text().splitlines() if x.strip()]
+          assert len(rows) == 1381, len(rows)
+          assert all(len(r["result"]) == 7 for r in rows)
+          print(f"BENCHMARK_ROWS={len(rows)}")
+          print("ALL_ROWS_HAVE_7_NUMBERS=True")
+          PY
+      - name: Verify ML dependency
+        run: python -c "import sklearn; print('SCIKIT_LEARN_VERSION=' + sklearn.__version__)"
+      - name: Verify runner identity
+        run: python -m src.machine_learning.runner_identity
+      - name: Run prize and leakage tests
+        run: python -m pytest src/machine_learning/tests/test_backtest_v2.py -q
+      - name: Run Backtest V2 benchmark
+        run: python -m src.machine_learning.run_backtest_v2
+      - name: Run independent Random baseline audit
+        run: python -m src.machine_learning.random_audit
+      - name: Run Random Monte Carlo baseline
+        run: python -m src.machine_learning.random_monte_carlo
+      - name: Run raw Monte Carlo significance benchmark
+        run: python -m src.machine_learning.monte_carlo_significance
+      - name: Run paired per-draw significance benchmark
+        run: python -m src.machine_learning.paired_significance
+      - name: Verify audit files
+        run: |
+          test -d artifacts/backtest_v2
+          test -s artifacts/backtest_v2/random_audit.json
+          test -s artifacts/backtest_v2/random_monte_carlo_raw.json
+          test -s artifacts/backtest_v2/random_monte_carlo_per_draw.json
+          test -s artifacts/backtest_v2/backtest_per_draw.json
+          test -s artifacts/backtest_v2/strategy_significance.json
+          test -s artifacts/backtest_v2/paired_significance.json
+          find artifacts/backtest_v2 -maxdepth 1 -type f -print
+      - name: Upload Backtest V2 audit artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-v2-final-audit
+          path: artifacts/backtest_v2/
+          if-no-files-found: error
+          retention-days: 30

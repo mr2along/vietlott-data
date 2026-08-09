@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = ["src"] # list of folders that contain the packages (["."] by default)
+where = ["src"]
 
 [project]
 name = "vietlott-data"
@@ -31,10 +31,10 @@ license = { text = "MIT" }
 Homepage = "https://github.com/vietvudanh/vietlott-data"
 Issues = "https://github.com/vietvudanh/vietlott-data/issues"
 
-
 [project.optional-dependencies]
 dev = ["pytest", "ruff", "build", "setuptools", "wheel", "twine", "pre-commit"]
 ml = ["numpy", "scikit-learn", "matplotlib", "pandas"]
+benchmark = ["numpy", "pandas", "scikit-learn"]
 
 [project.scripts]
 vietlott-crawl = "vietlott.cli.crawl:crawl"

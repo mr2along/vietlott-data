@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - backtest-v2-power655
+      - backtest-v2-final
 
 env:
   PYTHONPATH: src
@@ -21,8 +22,26 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pandas numpy polars pytest
+          pip install pandas numpy polars pytest scikit-learn
       - name: Run prize and leakage tests
         run: python -m pytest src/machine_learning/tests/test_backtest_v2.py -q
+      - name: Validate exponential decay half-life
+        run: |
+          rm -f artifacts/backtest_v2/decay_validation.json
+          python -m src.machine_learning.run_decay_validation
+          test -s artifacts/backtest_v2/decay_validation.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("artifacts/backtest_v2/decay_validation.json")
+          x = json.loads(p.read_text())
+          required = {"dataset_rows", "train_rows", "validation_rows", "test_rows_reserved", "selection_metric", "random_selection_weight", "candidates", "selected_half_life_days"}
+          assert required <= x.keys()
+          assert len(x["candidates"]) == 9
+          assert x["random_selection_weight"] == 0.0
+          assert x["test_rows_reserved"] > 0
+          assert x["selected_half_life_days"] in [30, 60, 90, 120, 180, 270, 365, 540, 730]
+          print("DECAY_VALIDATION_ARTIFACT_OK")
+          PY
       - name: Run Backtest V2 benchmark
         run: python -m src.machine_learning.run_backtest_v2
