@@ -28,7 +28,7 @@ class LogisticProbabilityStrategy(PredictModel):
     def __init__(
         self,
         df: pd.DataFrame,
-        time_predict: int = 6,
+        time_predict: int = 1,
         lookback_draws: int = 180,
         windows: tuple[int, ...] = (10, 30, 90),
         C: float = 0.25,
@@ -56,7 +56,6 @@ class LogisticProbabilityStrategy(PredictModel):
             sample = prior[-w:]
             feats.append(sum(number in s for s in sample) / len(sample))
 
-        # Exponential moving probability with half-life 30 draws.
         ewma = 0.0
         decay = math.exp(-math.log(2.0) / 30.0)
         weight = 1.0
@@ -90,8 +89,6 @@ class LogisticProbabilityStrategy(PredictModel):
 
         X: list[list[float]] = []
         y: list[int] = []
-        # Train on one-step-ahead observations. Each row uses only draws before
-        # that row's target draw, so the resulting model is genuinely walk-forward.
         for i in range(1, len(draw_sets)):
             for number in range(self.min_val, self.max_val + 1):
                 X.append(self._features_for_number(draw_sets, i, number))
@@ -110,10 +107,9 @@ class LogisticProbabilityStrategy(PredictModel):
         )
         model.fit(X, y)
 
-        current_sets = draw_sets
         probs: list[float] = []
         for number in range(self.min_val, self.max_val + 1):
-            x = self._features_for_number(current_sets, len(current_sets), number)
+            x = self._features_for_number(draw_sets, len(draw_sets), number)
             probs.append(float(model.predict_proba([x])[0, 1]))
         self._cache[key] = probs
         return probs
@@ -124,4 +120,4 @@ class LogisticProbabilityStrategy(PredictModel):
             range(self.min_val, self.max_val + 1),
             key=lambda n: (-probs[n - self.min_val], n),
         )
-        return sorted(ranked[: self.time_predict])
+        return sorted(ranked[: self.number_predict])
