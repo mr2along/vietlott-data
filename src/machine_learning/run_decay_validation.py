@@ -35,6 +35,7 @@ def load_dataset() -> pd.DataFrame:
 
 
 def main() -> None:
+    print("DECAY_VALIDATION_START", flush=True)
     df = load_dataset()
     n = len(df)
     validation_start = int(n * 0.70)
@@ -42,9 +43,11 @@ def main() -> None:
     validation_dates = df.iloc[validation_start:test_start]["date"].tolist()
 
     results = [
-        evaluate_half_life(df, validation_dates, half_life_days=h).__dict__
+        evaluate_half_life(df, validation_dates, h).__dict__
         for h in CANDIDATES
     ]
+    if len(results) != len(CANDIDATES):
+        raise RuntimeError("Incomplete half-life candidate evaluation")
     best = max(results, key=lambda r: (r["avg_hits"], -r["half_life_days"]))
 
     payload = {
@@ -59,7 +62,27 @@ def main() -> None:
     }
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    print(json.dumps(payload, indent=2))
+
+    check = json.loads(OUTPUT_PATH.read_text(encoding="utf-8"))
+    required = {
+        "dataset_rows",
+        "train_rows",
+        "validation_rows",
+        "test_rows_reserved",
+        "selection_metric",
+        "random_selection_weight",
+        "candidates",
+        "selected_half_life_days",
+    }
+    if not required.issubset(check):
+        raise RuntimeError("Decay validation artifact is missing required fields")
+    if len(check["candidates"]) != len(CANDIDATES):
+        raise RuntimeError("Decay validation artifact has incomplete candidates")
+    if check["random_selection_weight"] != 0.0:
+        raise RuntimeError("Decay validation must use zero random selection weight")
+
+    print(json.dumps(payload, indent=2), flush=True)
+    print("DECAY_VALIDATION_COMPLETE", flush=True)
 
 
 if __name__ == "__main__":
