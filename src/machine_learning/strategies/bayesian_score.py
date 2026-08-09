@@ -1,11 +1,4 @@
-"""Bayesian-smoothed number scoring strategy.
-
-This strategy estimates the per-number appearance probability using a
-Beta-Binomial posterior. A neutral Beta prior shrinks noisy frequencies toward
-the global expected rate (6/55), reducing overreaction to small samples.
-Recency weighting is applied to observations before updating the posterior,
-but the model never uses future draws.
-"""
+"""Bayesian-smoothed number scoring strategy."""
 
 from __future__ import annotations
 
@@ -36,9 +29,12 @@ class BayesianNumberScoreStrategy(PredictModel):
         self.temperature = float(temperature)
 
     def predict(self, target_date: date) -> list[int]:
-        hist = self.df[self.df["date"] < pd.Timestamp(target_date)]
+        target = pd.Timestamp(target_date)
+        dates = pd.to_datetime(self.df["date"])
+        hist = self.df.loc[dates < target].copy()
+        hist["date"] = pd.to_datetime(hist["date"])
         if self.lookback_days > 0:
-            cutoff = pd.Timestamp(target_date) - pd.Timedelta(days=self.lookback_days)
+            cutoff = target - pd.Timedelta(days=self.lookback_days)
             hist = hist[hist["date"] >= cutoff]
 
         prior_mean = 6.0 / 55.0
@@ -46,7 +42,6 @@ class BayesianNumberScoreStrategy(PredictModel):
         beta0 = self.prior_strength * (1.0 - prior_mean)
         weighted_hits = {n: 0.0 for n in range(self.min_val, self.max_val + 1)}
         weighted_trials = {n: 0.0 for n in range(self.min_val, self.max_val + 1)}
-        target = pd.Timestamp(target_date)
 
         for _, row in hist.iterrows():
             age = max(0.0, (target - pd.Timestamp(row["date"])).total_seconds() / 86400.0)
