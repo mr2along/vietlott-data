@@ -25,28 +25,32 @@ def main() -> None:
     results = {}
     for strategy, payload in backtest.items():
         observed = np.asarray(payload["draw_gains_vnd"], dtype=float)
+        costs = np.asarray(payload["draw_costs_vnd"], dtype=float)
         if observed.shape[0] != mc.shape[1]:
             raise ValueError(f"Draw count mismatch for {strategy}: {observed.shape[0]} vs {mc.shape[1]}")
+        if costs.shape != observed.shape or np.any(costs <= 0):
+            raise ValueError(f"Invalid per-draw costs for {strategy}: {costs.shape}")
 
-        # Paired null: for every historical draw, compare the strategy's realized
-        # gain with a random ticket set evaluated against that same draw result.
-        null_diffs = np.sum(observed[None, :] - mc, axis=1)
         observed_total = float(observed.sum())
+        cost = float(costs.sum())
         random_totals = mc.sum(axis=1)
         observed_minus_random = observed_total - random_totals
+
+        # One-sided Monte Carlo test of H1: strategy gain > random gain.
+        # The +1 correction avoids a zero p-value with a finite simulation count.
         p_value = float((np.sum(observed_minus_random <= 0) + 1) / (len(observed_minus_random) + 1))
 
-        # Effect is expressed as total gain difference in VND and ROI percentage points.
-        cost = float(payload["cost_vnd"])
+        # Compare the observed strategy ROI against every random ROI using the same total cost.
         diff_roi = observed_minus_random / cost * 100.0
         rng = np.random.default_rng(20260809)
         ci = bootstrap_ci(observed, rng)
         results[strategy] = {
             "observed_gain_vnd": observed_total,
-            "observed_roi_percent": float(payload["roi_pct"]),
+            "observed_cost_vnd": cost,
+            "observed_roi_percent": float(observed_total / cost * 100.0),
             "random_mean_gain_vnd": float(random_totals.mean()),
-            "mean_gain_difference_vnd": float(null_diffs.mean()),
-            "median_gain_difference_vnd": float(np.median(null_diffs)),
+            "mean_gain_difference_vnd": float(observed_minus_random.mean()),
+            "median_gain_difference_vnd": float(np.median(observed_minus_random)),
             "paired_roi_difference_percent_mean": float(diff_roi.mean()),
             "paired_roi_difference_percent_median": float(np.median(diff_roi)),
             "empirical_p_value_one_sided": p_value,
