@@ -59,6 +59,8 @@ jobs:
         run: python -m src.machine_learning.random_monte_carlo
       - name: Run raw Monte Carlo significance benchmark
         run: python -m src.machine_learning.monte_carlo_significance
+      - name: Run paired per-draw significance benchmark
+        run: python -m src.machine_learning.paired_significance
       - name: Verify audit files
         run: |
           test -d artifacts/backtest_v2
@@ -67,6 +69,7 @@ jobs:
           test -s artifacts/backtest_v2/random_monte_carlo_per_draw.json
           test -s artifacts/backtest_v2/backtest_per_draw.json
           test -s artifacts/backtest_v2/strategy_significance.json
+          test -s artifacts/backtest_v2/paired_significance.json
           find artifacts/backtest_v2 -maxdepth 1 -type f -print
       - name: Upload Backtest V2 audit artifacts
         uses: actions/upload-artifact@v4
