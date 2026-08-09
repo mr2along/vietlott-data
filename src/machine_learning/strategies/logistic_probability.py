@@ -1,10 +1,4 @@
-"""Walk-forward logistic probability strategy for Power 6/55.
-
-Each number is treated as a binary target: did this number appear in the
-next draw? Features are calculated strictly from draws before the target
-training date, preventing look-ahead leakage. A separate model is fitted for
-all 55 numbers using pooled number-level observations.
-"""
+"""Walk-forward logistic probability strategy for Power 6/55."""
 
 from __future__ import annotations
 
@@ -46,7 +40,6 @@ class LogisticProbabilityStrategy(PredictModel):
         return [set(int(x) for x in row["result"][:6]) for _, row in hist.iterrows()]
 
     def _features_for_number(self, draw_sets: list[set[int]], index: int, number: int) -> list[float]:
-        """Features available immediately before draw at ``index``."""
         prior = draw_sets[:index]
         if not prior:
             return [0.0] * (len(self.windows) + 2)
@@ -82,7 +75,9 @@ class LogisticProbabilityStrategy(PredictModel):
             raise ImportError("scikit-learn is required for LogisticProbabilityStrategy")
 
         target = pd.Timestamp(target_date)
-        hist = self.df[self.df["date"] < target].sort_values("date")
+        dates = pd.to_datetime(self.df["date"])
+        hist = self.df.loc[dates < target].copy().sort_values("date")
+        hist["date"] = pd.to_datetime(hist["date"])
         if self.lookback_draws > 0:
             hist = hist.tail(self.lookback_draws)
         draw_sets = self._draw_sets(hist)
