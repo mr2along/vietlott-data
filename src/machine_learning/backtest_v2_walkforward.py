@@ -69,7 +69,14 @@ def walk_forward(
         draw_gain = sum(_ticket_gain(ticket, target, prizes) for ticket in tickets)
         evaluation_results.append(list(target.main) + [target.special])
         tickets_by_draw.append(tickets)
-        details.append({"date": str(target.date), "gain_vnd": draw_gain, "cost_vnd": tickets_per_draw * prizes.ticket_price})
+        details.append(
+            {
+                "date": str(target.date),
+                "gain_vnd": draw_gain,
+                "cost_vnd": tickets_per_draw * prizes.ticket_price,
+                "predictions": [list(ticket) for ticket in tickets],
+            }
+        )
 
     summary = summarize(name, evaluation_results, tickets_by_draw, prizes)
     return summary, details
