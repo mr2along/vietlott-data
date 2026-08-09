@@ -27,12 +27,14 @@ def main():
     rows=load_rows(data_path)
     if len(rows)!=1381: raise ValueError(f'Expected 1381 normalized draws, got {len(rows)}')
     factories={'Random':factory(RandomModel),'Pattern':factory(PatternStrategy,lookback_days=180,pattern_weight=0.6),'PairFrequency':factory(PairFrequencyStrategy,lookback_days=365),'Markov':factory(MarkovChainStrategy,lookback_days=365,smoothing=0.5)}
-    summaries=[]
+    summaries=[]; details_by_strategy={}
     for name,make_strategy in factories.items():
         seed=20260809; random.seed(seed); np.random.seed(seed)
-        summary=walk_forward(name=name,rows=rows,strategy_factory=make_strategy,tickets_per_draw=PRIZES.tickets_per_draw,seed=seed,prizes=PRIZES,min_history=1)
+        summary, details=walk_forward(name=name,rows=rows,strategy_factory=make_strategy,tickets_per_draw=PRIZES.tickets_per_draw,seed=seed,prizes=PRIZES,min_history=1)
         summaries.append(summary.__dict__)
+        details_by_strategy[name]={"draw_gains_vnd":[d["gain_vnd"] for d in details],"draw_costs_vnd":[d["cost_vnd"] for d in details],"dates":[d["date"] for d in details]}
     out=Path('artifacts/backtest_v2'); out.mkdir(parents=True,exist_ok=True)
     (out/'backtest_summary.json').write_text(json.dumps(summaries,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-    print(pd.DataFrame(summaries).to_string(index=False)); print('\nPrize configuration:'); print(PRIZES); print(f'\nSaved {out/"backtest_summary.json"}')
+    (out/'backtest_per_draw.json').write_text(json.dumps(details_by_strategy,ensure_ascii=False)+'\n',encoding='utf-8')
+    print(pd.DataFrame(summaries).to_string(index=False)); print('\nPrize configuration:'); print(PRIZES); print(f'\nSaved {out/"backtest_summary.json"} and {out/"backtest_per_draw.json"}')
 if __name__=='__main__': main()
