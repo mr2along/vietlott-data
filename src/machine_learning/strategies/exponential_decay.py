@@ -47,7 +47,6 @@ class ExponentialDecayStrategy(PredictModel):
         past["_days_ago"] = past["date"].apply(lambda d: (target_date - d).days)
         past["_weight"] = np.exp(-self._decay_lambda * past["_days_ago"].to_numpy())
 
-        # Only the six main numbers participate in the score.
         exploded = past[["result", "_weight"]].copy()
         exploded["result"] = exploded["result"].apply(lambda xs: list(xs)[:6])
         exploded = exploded.explode("result").dropna(subset=["result"])
@@ -64,7 +63,13 @@ class ExponentialDecayStrategy(PredictModel):
             self._score_cache[target_date] = self._compute_scores(target_date)
         scores = self._score_cache[target_date]
 
-        sorted_nums = sorted(scores.keys(), key=lambda n: scores[n], reverse=self.hot)
+        sorted_nums = sorted(scores.keys(), key=lambda n: (scores[n], -n), reverse=self.hot)
+
+        # selection_weight=1.0 is the deterministic pure-decay mode used for
+        # validation. The production/backtest default remains stochastic.
+        if self.selection_weight >= 1.0:
+            return sorted_nums[: self.number_predict]
+
         max_score = scores[sorted_nums[0]] if sorted_nums else 1.0
         weighted_pool: List[int] = []
         for num in sorted_nums:
