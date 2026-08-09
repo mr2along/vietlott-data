@@ -2,7 +2,7 @@
 Lottery prediction strategy implementations.
 
 Available strategies include frequency, recency, structural, pairwise,
-Markov, random, and Bayesian-smoothed number scoring models.
+Markov, random, Bayesian-smoothed, and logistic probability models.
 """
 
 from .base import PredictModel
@@ -10,6 +10,7 @@ from .bayesian_score import BayesianNumberScoreStrategy
 from .exponential_decay import ExponentialDecayStrategy
 from .frequency import ColdNumbersStrategy, FrequencyStrategy, HotNumbersStrategy
 from .long_absence import LongAbsenceStrategy
+from .logistic_probability import LogisticProbabilityStrategy
 from .markov_chain import MarkovChainStrategy
 from .not_repeat import NotRepeatStrategy
 from .pair_frequency import PairFrequencyStrategy
@@ -29,4 +30,5 @@ __all__ = [
     "PairFrequencyStrategy",
     "MarkovChainStrategy",
     "BayesianNumberScoreStrategy",
+    "LogisticProbabilityStrategy",
 ]
