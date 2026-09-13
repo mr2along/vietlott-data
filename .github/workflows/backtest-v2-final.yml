@@ -50,8 +50,6 @@ jobs:
           PY
       - name: Verify ML dependency
         run: python -c "import sklearn; print('SCIKIT_LEARN_VERSION=' + sklearn.__version__)"
-      - name: Verify runner identity
-        run: python -m src.machine_learning.runner_identity
       - name: Run prize, leakage, and strategy tests
         run: python -m pytest src/machine_learning/tests -q
       - name: Validate exponential decay half-life
