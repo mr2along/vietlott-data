@@ -2,8 +2,8 @@
 #    uv pip compile pyproject.toml
 attrs==25.4.0
     # via
-    #   vietlott-data (pyproject.toml)
     #   cattrs
+    #   vietlott-data (pyproject.toml)
 beautifulsoup4==4.14.2
     # via bs4
 bs4==0.0.2
@@ -34,6 +34,8 @@ python-dateutil==2.9.0.post0
     # via pendulum
 requests==2.32.5
     # via vietlott-data (pyproject.toml)
+scikit-learn==1.9.0
+    # via vietlott-data (pyproject.toml)
 six==1.17.0
     # via python-dateutil
 soupsieve==2.8
@@ -43,7 +45,7 @@ tabulate==0.9.0
 typing-extensions==4.15.0
     # via
     #   beautifulsoup4
-    #   cattrs
+    #   scikit-learn
 tzdata==2025.2
     # via pendulum
 urllib3==2.5.0
