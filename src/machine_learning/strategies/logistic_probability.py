@@ -30,28 +30,30 @@ class LogisticProbabilityStrategy(PredictModel):
         self.min_training_rows = int(min_training_rows)
         self._cache: Dict[date, List[int]] = {}
 
-    def _feature_row(self, history: pd.DataFrame, target_date: date) -> list[float]:
-        target = pd.Timestamp(target_date)
-        row_features: list[float] = []
-        for window in self.windows:
-            cutoff = target - pd.Timedelta(days=window)
-            sample = history[history["date"] >= cutoff]
-            row_features.append(float(sum(int(n) in set(map(int, list(r)[:6])) for n in sample["result"] for _ in [0])))
-        # Recent-draw occurrence and current gap in draws.
-        recent = history.tail(5)
-        row_features.append(float(sum(int(n) in set(map(int, list(r)[:6])) for r in recent["result"] for n in [0])))
-        return row_features
+    @staticmethod
+    def _normalized_dates(history: pd.DataFrame) -> list[pd.Timestamp]:
+        """Normalize mixed datetime/date values to pandas Timestamp objects."""
+        return [pd.Timestamp(value) for value in history["date"].tolist()]
+
+    @staticmethod
+    def _main_set(value) -> set[int]:
+        """Read only the six main numbers; the special number is never a feature."""
+        return {int(x) for x in list(value)[:6]}
 
     def _number_features(self, history: pd.DataFrame, number: int, target_date: date) -> list[float]:
         target = pd.Timestamp(target_date)
         features: list[float] = []
-        sets = [set(map(int, list(r)[:6])) for r in history["result"]]
-        dates = list(history["date"])
+        sets = [self._main_set(r) for r in history["result"]]
+        dates = self._normalized_dates(history)
+
         for window in self.windows:
             cutoff = target - pd.Timedelta(days=window)
             features.append(float(sum(number in s for s, d in zip(sets, dates) if d >= cutoff)))
+
         last5 = sets[-5:]
         features.append(float(sum(number in s for s in last5)))
+
+        # Gap in draws since the most recent occurrence; larger means longer absence.
         gap = len(history)
         for i in range(len(sets) - 1, -1, -1):
             if number in sets[i]:
@@ -72,11 +74,11 @@ class LogisticProbabilityStrategy(PredictModel):
 
         X: list[list[float]] = []
         y: list[int] = []
-        dates = history["date"].tolist()
+        dates = self._normalized_dates(history)
         for i in range(self.min_training_rows, len(history)):
             prior = history.iloc[:i]
-            actual = set(int(x) for x in list(history.iloc[i]["result"])[:6])
-            train_date = dates[i]
+            actual = self._main_set(history.iloc[i]["result"])
+            train_date = dates[i].date()
             for number in range(self.min_val, self.max_val + 1):
                 X.append(self._number_features(prior, number, train_date))
                 y.append(int(number in actual))
