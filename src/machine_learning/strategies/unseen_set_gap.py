@@ -53,20 +53,21 @@ class UnseenSetGapStrategy(PredictModel):
         past = self.df[self.df["date"] < target_date].sort_values("date")
         all_numbers = list(range(self.min_val, self.max_val + 1))
 
-        last_seen: dict[int, object] = {}
         seen_sets: set[tuple[int, ...]] = set()
-        for values in past["result"]:
-            main = tuple(sorted(int(x) for x in list(values)[: self.number_predict]))
-            if len(main) == self.number_predict and len(set(main)) == self.number_predict:
-                seen_sets.add(main)
-                for n in main:
-                    last_seen[n] = 1
+        rows_for_gap: list[dict[str, object]] = []
+        for row in past[["date", "result"]].itertuples(index=False):
+            main = tuple(sorted(int(x) for x in list(row.result)[: self.number_predict]))
+            if len(main) != self.number_predict or len(set(main)) != self.number_predict:
+                continue
+            seen_sets.add(main)
+            rows_for_gap.append({"date": row.date, "result": list(main)})
 
-        # Recover actual last dates separately so the gap is measured in days.
-        if not past.empty:
-            exploded = past[["date", "result"]].explode("result")
-            exploded["result"] = exploded["result"].astype(int)
-            last_dates = exploded.groupby("result")["date"].max().to_dict()
+        # Gap scoring is based only on the six main numbers; the 7th special
+        # number must never influence which main numbers are considered overdue.
+        if rows_for_gap:
+            gap_df = pd.DataFrame(rows_for_gap).explode("result")
+            gap_df["result"] = gap_df["result"].astype(int)
+            last_dates = gap_df.groupby("result")["date"].max().to_dict()
         else:
             last_dates = {}
 
