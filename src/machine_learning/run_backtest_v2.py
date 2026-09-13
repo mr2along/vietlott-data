@@ -25,6 +25,7 @@ from .strategies import (
     PairFrequencyStrategy,
     PatternStrategy,
     RandomModel,
+    UnseenSetGapStrategy,
 )
 
 
@@ -85,6 +86,13 @@ def main() -> None:
             selection_weight=1.0,
         ),
         "LogisticProbability": factory(LogisticProbabilityStrategy),
+        # Portfolio model: prefer overdue numbers while rejecting every exact
+        # 6-number combination already observed before the target draw.
+        "UnseenSetGap": factory(
+            UnseenSetGapStrategy,
+            candidate_pool_size=18,
+            max_attempts=200,
+        ),
     }
 
     summaries = []
