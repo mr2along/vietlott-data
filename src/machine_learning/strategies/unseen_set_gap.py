@@ -1,9 +1,9 @@
 """Unseen-combination strategy driven by overdue numbers.
 
 The model targets *sets* that have not appeared before, rather than only
-ranking individual numbers.  It combines draw-level absence (gap) with an
-explicit exact-combination exclusion so that a predicted 6-number set is not
-one of the historical 6-number sets seen before the target date.
+ranking individual numbers. It combines draw-level absence (gap) with an
+explicit exact-combination exclusion and avoids duplicate tickets within the
+same target-draw portfolio.
 """
 
 from __future__ import annotations
@@ -22,12 +22,13 @@ from machine_learning.strategies.base import PredictModel
 class UnseenSetGapStrategy(PredictModel):
     """Predict previously unseen 6-number sets built from overdue numbers.
 
-    Numbers are ranked by draws since their most recent appearance.  A pool
-    of the most overdue numbers is then used to generate a 6-number ticket.
-    Historical exact 6-number combinations are rejected.
+    Numbers are ranked by days since their most recent appearance. A pool of
+    the most overdue numbers is then used to generate tickets. Historical
+    exact 6-number combinations are rejected, and repeated tickets are avoided
+    when ``predict()`` is called multiple times for one target draw.
 
-    This is deliberately a portfolio-style model: the individual number gap
-    is only the building block; the final prediction is a *combination*.
+    This is deliberately a portfolio-style model: individual number gap is
+    the building block, while the final prediction is a 6-number combination.
     """
 
     def __init__(
@@ -42,9 +43,12 @@ class UnseenSetGapStrategy(PredictModel):
         super().__init__(df, time_predict, min_val, max_val)
         if candidate_pool_size < self.number_predict:
             raise ValueError("candidate_pool_size must be >= number_predict")
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be >= 1")
         self.candidate_pool_size = min(candidate_pool_size, max_val - min_val + 1)
         self.max_attempts = max_attempts
         self._cache: dict[date, tuple[list[int], dict[int, float], set[tuple[int, ...]]]] = {}
+        self._issued: dict[date, set[tuple[int, ...]]] = {}
 
     def _prepare(self, target_date: date):
         if target_date in self._cache:
@@ -62,8 +66,8 @@ class UnseenSetGapStrategy(PredictModel):
             seen_sets.add(main)
             rows_for_gap.append({"date": row.date, "result": list(main)})
 
-        # Gap scoring is based only on the six main numbers; the 7th special
-        # number must never influence which main numbers are considered overdue.
+        # Gap scoring uses only the six main numbers; the 7th special number
+        # must never influence the overdue ranking.
         if rows_for_gap:
             gap_df = pd.DataFrame(rows_for_gap).explode("result")
             gap_df["result"] = gap_df["result"].astype(int)
@@ -79,13 +83,13 @@ class UnseenSetGapStrategy(PredictModel):
         ranked = sorted(all_numbers, key=lambda n: (-gaps[n], n))
         candidate_pool = ranked[: self.candidate_pool_size]
         self._cache[target_date] = (candidate_pool, gaps, seen_sets)
+        self._issued.setdefault(target_date, set())
         return self._cache[target_date]
 
     @staticmethod
     def _weighted_sample(pool: list[int], scores: dict[int, float]) -> List[int]:
         available = pool[:]
         selected: list[int] = []
-        # Convert the gap into a stable, bounded weight. Infinite gap gets max.
         finite = [v for v in scores.values() if math.isfinite(v)]
         cap = max(finite, default=1.0)
         for _ in range(min(6, len(available))):
@@ -100,18 +104,29 @@ class UnseenSetGapStrategy(PredictModel):
 
     def predict(self, target_date: date) -> List[int]:
         candidate_pool, gaps, seen_sets = self._prepare(target_date)
+        issued = self._issued.setdefault(target_date, set())
 
         for _ in range(self.max_attempts):
             ticket = tuple(self._weighted_sample(candidate_pool, gaps))
-            if ticket not in seen_sets and len(ticket) == self.number_predict:
+            if (
+                len(ticket) == self.number_predict
+                and ticket not in seen_sets
+                and ticket not in issued
+            ):
+                issued.add(ticket)
                 return list(ticket)
 
-        # Deterministic fallback: inspect combinations in ranked order and
-        # choose the highest-gap unseen set.
+        # Deterministic fallback: choose the highest-gap unseen ticket that has
+        # not already been issued for this target draw.
         for ticket in combinations(candidate_pool, self.number_predict):
             key = tuple(sorted(ticket))
-            if key not in seen_sets:
+            if key not in seen_sets and key not in issued:
+                issued.add(key)
                 return list(key)
 
-        # Extremely defensive fallback for a saturated candidate pool.
-        return sorted(candidate_pool[: self.number_predict])
+        # If the candidate pool becomes saturated, a previously unseen ticket
+        # may not exist. Keep the API contract by returning the highest-gap
+        # valid ticket; duplicates are allowed only in this pathological case.
+        fallback = tuple(sorted(candidate_pool[: self.number_predict]))
+        issued.add(fallback)
+        return list(fallback)
