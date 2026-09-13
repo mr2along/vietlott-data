@@ -18,6 +18,7 @@ from .strategies import (
     PairFrequencyStrategy,
     PatternStrategy,
     RandomModel,
+    RankEnsembleStrategy,
     UnseenSetGapStrategy,
 )
 
@@ -107,6 +108,7 @@ def main() -> None:
         "Bayesian": factory(BayesianProbabilityStrategy, prior_strength=20.0, half_life_days=180.0),
         "ExponentialDecay": factory(ExponentialDecayStrategy, half_life_days=730, hot=True, selection_weight=1.0),
         "LogisticProbability": factory(LogisticProbabilityStrategy),
+        "RankEnsemble": factory(RankEnsembleStrategy),
         "UnseenSetGap": factory(UnseenSetGapStrategy, candidate_pool_size=18, max_attempts=200),
     }
 
@@ -115,7 +117,7 @@ def main() -> None:
     for name, make_strategy in factories.items():
         summary, details = run_strategy(
             name, rows, make_strategy, seed=20260809,
-            min_history=30 if name == "LogisticProbability" else 1,
+            min_history=30 if name in {"LogisticProbability", "RankEnsemble"} else 1,
         )
         summaries.append(summary)
         all_per_draw.extend(details)
