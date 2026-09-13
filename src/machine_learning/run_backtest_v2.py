@@ -18,6 +18,9 @@ import pandas as pd
 from .backtest_v2 import PrizeConfig
 from .backtest_v2_walkforward import walk_forward
 from .strategies import (
+    BayesianProbabilityStrategy,
+    ExponentialDecayStrategy,
+    LogisticProbabilityStrategy,
     MarkovChainStrategy,
     PairFrequencyStrategy,
     PatternStrategy,
@@ -67,6 +70,21 @@ def main() -> None:
         "Pattern": factory(PatternStrategy, lookback_days=180, pattern_weight=0.6),
         "PairFrequency": factory(PairFrequencyStrategy, lookback_days=365),
         "Markov": factory(MarkovChainStrategy, lookback_days=365, smoothing=0.5),
+        # Model-based probability strategies.
+        "Bayesian": factory(
+            BayesianProbabilityStrategy,
+            prior_strength=20.0,
+            half_life_days=180.0,
+        ),
+        # 730 days is the value selected by the dedicated validation stage;
+        # keep this frozen for benchmark comparability.
+        "ExponentialDecay": factory(
+            ExponentialDecayStrategy,
+            half_life_days=730,
+            hot=True,
+            selection_weight=1.0,
+        ),
+        "LogisticProbability": factory(LogisticProbabilityStrategy),
     }
 
     summaries = []
@@ -81,7 +99,7 @@ def main() -> None:
             tickets_per_draw=PRIZES.tickets_per_draw,
             seed=seed,
             prizes=PRIZES,
-            min_history=1,
+            min_history=30 if name == "LogisticProbability" else 1,
         )
         summaries.append(summary.__dict__)
 
