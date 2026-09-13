@@ -13,6 +13,7 @@ from .not_repeat import NotRepeatStrategy
 from .pair_frequency import PairFrequencyStrategy
 from .pattern import PatternStrategy
 from .random_strategy import RandomModel
+from .unseen_set_gap import UnseenSetGapStrategy
 
 __all__ = [
     "PredictModel",
@@ -28,4 +29,5 @@ __all__ = [
     "MarkovChainStrategy",
     "BayesianProbabilityStrategy",
     "LogisticProbabilityStrategy",
+    "UnseenSetGapStrategy",
 ]
