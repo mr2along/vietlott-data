@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - main
       - backtest-v2-final
   pull_request:
     branches:
@@ -51,8 +52,8 @@ jobs:
         run: python -c "import sklearn; print('SCIKIT_LEARN_VERSION=' + sklearn.__version__)"
       - name: Verify runner identity
         run: python -m src.machine_learning.runner_identity
-      - name: Run prize and leakage tests
-        run: python -m pytest src/machine_learning/tests/test_backtest_v2.py -q
+      - name: Run prize, leakage, and strategy tests
+        run: python -m pytest src/machine_learning/tests -q
       - name: Validate exponential decay half-life
         run: |
           rm -f artifacts/backtest_v2/decay_validation.json
