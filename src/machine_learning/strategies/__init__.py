@@ -12,6 +12,7 @@ from .markov_chain import MarkovChainStrategy
 from .not_repeat import NotRepeatStrategy
 from .pair_frequency import PairFrequencyStrategy
 from .pattern import PatternStrategy
+from .portfolio_ensemble import PortfolioEnsembleStrategy
 from .random_strategy import RandomModel
 from .rank_ensemble import RankEnsembleStrategy
 from .unseen_set_gap import UnseenSetGapStrategy
@@ -31,5 +32,6 @@ __all__ = [
     "BayesianProbabilityStrategy",
     "LogisticProbabilityStrategy",
     "RankEnsembleStrategy",
+    "PortfolioEnsembleStrategy",
     "UnseenSetGapStrategy",
 ]
