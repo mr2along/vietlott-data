@@ -17,6 +17,7 @@ from .strategies import (
     MarkovChainStrategy,
     PairFrequencyStrategy,
     PatternStrategy,
+    PortfolioEnsembleStrategy,
     RandomModel,
     RankEnsembleStrategy,
     UnseenSetGapStrategy,
@@ -109,6 +110,12 @@ def main() -> None:
         "ExponentialDecay": factory(ExponentialDecayStrategy, half_life_days=730, hot=True, selection_weight=1.0),
         "LogisticProbability": factory(LogisticProbabilityStrategy),
         "RankEnsemble": factory(RankEnsembleStrategy),
+        "PortfolioEnsemble": factory(
+            PortfolioEnsembleStrategy,
+            tickets_per_draw=PRIZES.tickets_per_draw,
+            candidate_pool_size=24,
+            usage_penalty=0.35,
+        ),
         "UnseenSetGap": factory(UnseenSetGapStrategy, candidate_pool_size=18, max_attempts=200),
     }
 
@@ -117,7 +124,7 @@ def main() -> None:
     for name, make_strategy in factories.items():
         summary, details = run_strategy(
             name, rows, make_strategy, seed=20260809,
-            min_history=30 if name in {"LogisticProbability", "RankEnsemble"} else 1,
+            min_history=30 if name in {"LogisticProbability", "RankEnsemble", "PortfolioEnsemble"} else 1,
         )
         summaries.append(summary)
         all_per_draw.extend(details)
