@@ -55,10 +55,7 @@ class RankEnsembleStrategy(PredictModel):
             ("LogisticProbability", self.weights.get("LogisticProbability", 0.0), self._logistic),
         ]
 
-    def predict(self, target_date: date) -> List[int]:
-        if target_date in self._cache:
-            return list(self._cache[target_date])
-
+    def _scores(self, target_date: date) -> dict[int, float]:
         scores = {n: 0.0 for n in range(self.min_val, self.max_val + 1)}
         for _, weight, model in self._components():
             if weight <= 0:
@@ -67,7 +64,13 @@ class RankEnsembleStrategy(PredictModel):
             for rank, number in enumerate(selected):
                 if self.min_val <= number <= self.max_val:
                     scores[number] += float(weight) * (self.number_predict - rank)
+        return scores
 
+    def predict(self, target_date: date) -> List[int]:
+        if target_date in self._cache:
+            return list(self._cache[target_date])
+
+        scores = self._scores(target_date)
         result = sorted(scores, key=lambda n: (-scores[n], n))[: self.number_predict]
         self._cache[target_date] = result
         return list(result)
