@@ -44,7 +44,8 @@ def test_rank_ensemble_does_not_use_target_or_special_number():
     first = model.predict(date(2026, 1, 13))
 
     leaked = history.copy(deep=True)
-    leaked.loc[5, "result"] = [1, 2, 3, 4, 5, 6, 49]
+    # Change only the special number; keep all six main numbers identical.
+    leaked.loc[5, "result"] = [31, 32, 33, 34, 35, 36, 49]
     leaked_model = RankEnsembleStrategy(
         leaked,
         weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
