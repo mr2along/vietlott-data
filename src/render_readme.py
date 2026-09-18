@@ -25,7 +25,7 @@ class ReadmeTemplates:
         return """# 🎰 Vietlott Data
 
 [![GitHub Actions](https://github.com/mr2along/vietlott-data/workflows/crawl/badge.svg)](https://github.com/mr2along/vietlott-data/actions)
-[![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Data Updated](https://img.shields.io/badge/data-daily%20updated-brightgreen.svg)](https://github.com/mr2along/vietlott-data/commits/main)
 [![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Deployed-blue)](https://vietvudanh.github.io/vietlott-data/)
@@ -81,7 +81,7 @@ class ReadmeTemplates:
 
 This project runs completely automatically using **GitHub Actions** - no server required!
 
-- **⏰ Schedule**: Runs daily via [GitHub Actions workflow](.github/workflows/crawl.yaml)
+- **⏰ Schedule**: Runs daily via [GitHub Actions workflow](.github/workflows/crawl.yml)
 - **🔄 Process**: Fetches latest results → Processes data → Commits to repository
 - **📊 Analysis**: Generates statistics and updates README automatically
 
@@ -434,7 +434,7 @@ For background on these models, see the [Machine Learning README](./src/machine_
     def save_readme(self, output_path: Optional[Path] = None) -> None:
         """Generate and save README to file."""
         if output_path is None:
-            output_path = Path("./readme.md")
+            output_path = Path("./README.md")
 
         try:
             readme_content = self.generate_readme()
