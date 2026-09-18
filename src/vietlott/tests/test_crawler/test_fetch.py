@@ -119,8 +119,7 @@ def test_power655_fallback_replaces_stale_row(monkeypatch, tmp_path):
     product = ProductPower655()
     product.product_config.raw_path = tmp_path / "power655.jsonl"
     product.product_config.raw_path.write_text(
-        '{"date":"2026-09-17","id":"01399","result":[1,2,3,4,5,6,7],"process_time":"old"}
-',
+        '{"date":"2026-09-17","id":"01399","result":[1,2,3,4,5,6,7],"process_time":"old"}\n',
         encoding="utf-8",
     )
 
