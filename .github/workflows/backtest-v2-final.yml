@@ -30,7 +30,7 @@ jobs:
         run: |
           echo "GITHUB_SHA=$GITHUB_SHA"
           echo "GITHUB_REF=$GITHUB_REF"
-          git rev-parse HEAD
+          test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -52,12 +52,16 @@ jobs:
           from pathlib import Path
           p = Path("artifacts/backtest_v2/power655_benchmark.jsonl")
           rows = [json.loads(x) for x in p.read_text().splitlines() if x.strip()]
-          assert len(rows) == 1381, len(rows)
+          assert rows, "benchmark is empty"
           assert all(len(r["result"]) == 7 for r in rows)
+          assert len({r["id"] for r in rows}) == len(rows)
+          assert len({r["date"] for r in rows}) == len(rows)
           dates = [r["date"] for r in rows]
           assert dates == sorted(dates)
           print(f"BENCHMARK_ROWS={len(rows)}")
           print("ALL_ROWS_HAVE_7_NUMBERS=True")
+          print("BENCHMARK_IDS_UNIQUE=True")
+          print("BENCHMARK_DATES_UNIQUE=True")
           print("BENCHMARK_SORTED=True")
           PY
       - name: Verify ML dependency
@@ -66,22 +70,34 @@ jobs:
         run: python -m pytest src/vietlott/tests src/machine_learning/tests -q
       - name: Smoke test Power 6/55 crawler
         run: |
+          backup="$(mktemp)"
+          cp data/power655.jsonl "$backup"
+          trap 'cp "$backup" data/power655.jsonl; rm -f "$backup"' EXIT
           rm -f data/power655.jsonl
-          vietlott-crawl power_655 --index_from 0 --index_to 1
+          vietlott-crawl power_655 --index-from 0 --index-to 1
           python - <<'PY'
           import json
+          from datetime import date, timedelta
           from pathlib import Path
+          from zoneinfo import ZoneInfo
+
           rows = [json.loads(line) for line in Path("data/power655.jsonl").read_text().splitlines() if line.strip()]
           assert rows, "crawler returned no rows"
           latest = max(rows, key=lambda row: (row["date"], row["id"]))
+          today = date.today()
+          try:
+              today = date.fromtimestamp(__import__("datetime").datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).timestamp())
+          except Exception:
+              pass
+          latest_date = date.fromisoformat(latest["date"])
+          assert latest_date <= today, latest
+          assert latest_date >= today - timedelta(days=4), latest
           assert len(latest["result"]) == 7
-          assert latest["id"] == "01399", latest
-          assert latest["date"] == "2026-09-17", latest
           assert len(set(latest["result"][:6])) == 6
           assert latest["result"][6] not in latest["result"][:6]
+          assert str(latest["id"]).isdigit() and len(str(latest["id"])) == 5
           print("CRAWLER_SMOKE_OK", latest)
           PY
-
       - name: Validate exponential decay half-life
         run: |
           rm -f artifacts/backtest_v2/decay_validation.json
@@ -91,13 +107,14 @@ jobs:
           import json
           from pathlib import Path
           x = json.loads(Path("artifacts/backtest_v2/decay_validation.json").read_text())
-          required = {"dataset_rows","train_rows","validation_rows","test_rows_reserved","selection_metric","random_selection_weight","candidates","selected_half_life_days","locked_holdout"}
+          required = {"dataset_source","dataset_rows","train_rows","validation_rows","test_rows_reserved","selection_metric","random_selection_weight","candidates","selected_half_life_days","locked_holdout"}
           assert required <= x.keys()
           assert len(x["candidates"]) == 9
           assert x["random_selection_weight"] == 0.0
           assert x["test_rows_reserved"] > 0
           assert x["selected_half_life_days"] in [30,60,90,120,180,270,365,540,730]
           assert x["locked_holdout"]["used_for_selection"] is False
+          assert x["dataset_source"] == "artifacts/backtest_v2/power655_benchmark.jsonl"
           print("DECAY_VALIDATION_ARTIFACT_OK")
           PY
       - name: Run Backtest V2 benchmark

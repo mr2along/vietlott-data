@@ -11,12 +11,24 @@ from vietlott.crawler.products import BaseProduct
 @click.pass_context
 @click.argument("product")
 @click.option("--run-date", default=pendulum.now(tz="Asia/Ho_Chi_Minh").to_date_string())
-@click.option("--index_from", default=0, type=int, help="page index from run since we crawl by pagination the pages")
-@click.option("--index_to", default=None, type=int, help="page index from run since we crawl by pagination the pages")
+@click.option(
+    "--index_from",
+    "--index-from",
+    "index_from",
+    default=0,
+    type=int,
+    help="Starting page index (inclusive).",
+)
+@click.option(
+    "--index_to",
+    "--index-to",
+    "index_to",
+    default=None,
+    type=int,
+    help="Ending page index (exclusive).",
+)
 def crawl(ctx, product, run_date, index_from, index_to):
-    """
-    crawl a product with a given run date or from/to index page
-    """
+    """Crawl one Vietlott product."""
     if product not in product_config_map:
         logger.error(f"Product must be in product_map: {list(product_config_map.keys())}")
         ctx.exit(1)

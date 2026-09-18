@@ -79,6 +79,7 @@ def test_power655_fallback_parses_validated_rows(monkeypatch, tmp_path):
 
     class Resp:
         text = html
+
         def raise_for_status(self):
             return None
 
@@ -92,3 +93,37 @@ def test_power655_fallback_parses_validated_rows(monkeypatch, tmp_path):
     row = product.product_config.raw_path.read_text().strip()
     assert '"id":"01399"' in row
     assert '"result":[6,11,25,27,37,45,15]' in row
+
+
+def test_power655_fallback_replaces_stale_row(monkeypatch, tmp_path):
+    html = """
+    <html><body>
+    <h4>KẾT QUẢ XỔ SỐ POWER 6/55 - NGÀY: 17/09/2026</h4>
+    <div>Kỳ vé: #01399 | Ngày quay thưởng 17/09/2026
+      06 11 25 27 37 45 15
+    </div>
+    <div>Giải thưởng</div>
+    </body></html>
+    """
+
+    class Resp:
+        text = html
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr(
+        "vietlott.crawler.products.power655.requests.get",
+        lambda *args, **kwargs: Resp(),
+    )
+    product = ProductPower655()
+    product.product_config.raw_path = tmp_path / "power655.jsonl"
+    product.product_config.raw_path.write_text(
+        '{"date":"2026-09-17","id":"01399","result":[1,2,3,4,5,6,7],"process_time":"old"}\n',
+        encoding="utf-8",
+    )
+
+    assert product.crawl_fallback("2026-09-18", 0, 1) is True
+    rows = [line for line in product.product_config.raw_path.read_text().splitlines() if line.strip()]
+    assert len(rows) == 1
+    assert '"result":[6,11,25,27,37,45,15]' in rows[0]

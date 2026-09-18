@@ -28,15 +28,38 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-      - name: Crawl latest data
+      - name: Crawl Power 6/55
         run: |
-          vietlott-crawl power_655 --index_from 0 --index_to 1
-          vietlott-crawl power_645 --index_from 0 --index_to 1
-          vietlott-crawl power_535 --index_from 0 --index_to 1
-          vietlott-crawl 3d --index_from 0 --index_to 1
-          vietlott-crawl 3d_pro --index_from 0 --index_to 1
-          vietlott-crawl bingo18 --index_from 0 --index_to 1
-          vietlott-crawl keno --index_from 0 --index_to 24
+          vietlott-crawl power_655 --index-from 0 --index-to 1
+      - name: Validate Power 6/55 freshness
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import date, timedelta
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+          from datetime import datetime
+
+          rows = [json.loads(line) for line in Path("data/power655.jsonl").read_text().splitlines() if line.strip()]
+          assert rows, "Power 6/55 crawler returned no rows"
+          latest = max(rows, key=lambda row: (row["date"], row["id"]))
+          today = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).date()
+          latest_date = date.fromisoformat(str(latest["date"]))
+          assert latest_date <= today, latest
+          assert latest_date >= today - timedelta(days=4), latest
+          assert len(latest["result"]) == 7, latest
+          assert len(set(latest["result"][:6])) == 6, latest
+          assert latest["result"][6] not in latest["result"][:6], latest
+          print("POWER655_FRESH_OK", latest)
+          PY
+      - name: Crawl remaining products
+        run: |
+          vietlott-crawl power_645 --index-from 0 --index-to 1
+          vietlott-crawl power_535 --index-from 0 --index-to 1
+          vietlott-crawl 3d --index-from 0 --index-to 1
+          vietlott-crawl 3d_pro --index-from 0 --index-to 1
+          vietlott-crawl bingo18 --index-from 0 --index-to 1
+          vietlott-crawl keno --index-from 0 --index-to 24
       - name: Regenerate documentation
         run: |
           python src/render_readme.py

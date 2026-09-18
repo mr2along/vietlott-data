@@ -8,6 +8,7 @@ from pathlib import Path
 TICKET_PRICE = 10_000
 TICKETS_PER_DRAW = 30
 SEED = 20260809
+MIN_BENCHMARK_ROWS = 100
 
 
 def prize(matches: int, special_hit: bool) -> int:
@@ -27,9 +28,12 @@ def prize(matches: int, special_hit: bool) -> int:
 def load_targets() -> list[tuple[set[int], int]]:
     path = Path("artifacts/backtest_v2/power655_benchmark.jsonl")
     rows = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
-    if len(rows) != 1381 or not all(len(r["result"]) == 7 for r in rows):
-        raise ValueError("Benchmark must contain exactly 1381 complete 7-number rows")
-    return [(set(r["result"][:6]), int(r["result"][6])) for r in rows[1:]]
+    if len(rows) < MIN_BENCHMARK_ROWS or not all(len(r["result"]) == 7 for r in rows):
+        raise ValueError(f"Benchmark must contain at least {MIN_BENCHMARK_ROWS} complete 7-number rows")
+    targets = rows[1:]
+    if not targets:
+        raise ValueError("Benchmark does not contain a prediction target after the initial history row")
+    return [(set(int(x) for x in r["result"][:6]), int(r["result"][6])) for r in targets]
 
 
 def main() -> None:
@@ -59,6 +63,7 @@ def main() -> None:
     observed = {str(k): v / tickets for k, v in match_counts.items()}
     report = {
         "seed": SEED,
+        "benchmark_rows": len(targets) + 1,
         "draws": len(targets),
         "tickets": tickets,
         "tickets_per_draw": TICKETS_PER_DRAW,

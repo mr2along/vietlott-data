@@ -38,7 +38,7 @@ class ProductPower655(BaseProduct):
     FALLBACK_URL = "https://www.minhngoc.net/ket-qua-xo-so/dien-toan-vietlott/power-6x55.html"
 
     def crawl_fallback(self, run_date_str: str, index_from: int, index_to: int) -> bool:
-        """Use a validated public HTML mirror for daily refresh when Vietlott returns HTTP 403."""
+        """Use a validated public HTML mirror for daily refresh when Vietlott returns HTTP 403/429."""
         if index_from != 0:
             raise RuntimeError("Power 6/55 fallback supports only index_from=0")
         logger.warning(f"using Power 6/55 fallback source: {self.FALLBACK_URL}")
@@ -49,49 +49,77 @@ class ProductPower655(BaseProduct):
         )
         res.raise_for_status()
         text = BeautifulSoup(res.text, "lxml").get_text(" ", strip=True)
+
         pattern = re.compile(
             r"KẾT QUẢ XỔ SỐ POWER 6/55\s*-\s*NGÀY:\s*(\d{2}/\d{2}/\d{4}).*?"
-            r"Kỳ vé:\s*#?(\d{5}).*?Ngày quay thưởng\s*\d{2}/\d{2}/\d{4}\s*(.*?)Giải thưởng",
+            r"Kỳ vé:\s*#?(\d{5}).*?"
+            r"Ngày quay thưởng\s*(\d{2}/\d{2}/\d{4})\s*(.*?)Giải thưởng",
             re.IGNORECASE,
         )
+
         rows: List[Dict] = []
         for match in pattern.finditer(text):
-            date_str, draw_id, body = match.groups()
+            date_str, draw_id, draw_date_str, body = match.groups()
+            if date_str != draw_date_str:
+                logger.warning(
+                    f"discarding fallback row {draw_id}: page date {date_str} "
+                    f"does not match draw date {draw_date_str}"
+                )
+                continue
+
             numbers = [int(x) for x in re.findall(r"(?<!\d)(\d{1,2})(?!\d)", body)]
             if len(numbers) < 7:
                 continue
             result = numbers[:7]
-            if len(set(result[:6])) != 6 or result[6] in result[:6]:
+            if (
+                len(set(result[:6])) != 6
+                or any(n < 1 or n > 55 for n in result)
+                or result[6] in result[:6]
+            ):
                 continue
-            rows.append({
-                "date": datetime.strptime(date_str, "%d/%m/%Y").strftime("%Y-%m-%d"),
-                "id": draw_id,
-                "result": result,
-                "process_time": datetime.now().isoformat(),
-                "source": self.FALLBACK_URL,
-            })
+
+            rows.append(
+                {
+                    "date": datetime.strptime(date_str, "%d/%m/%Y").strftime("%Y-%m-%d"),
+                    "id": draw_id,
+                    "result": result,
+                    "process_time": datetime.now().isoformat(),
+                    "source": self.FALLBACK_URL,
+                }
+            )
+
         rows = list({row["id"]: row for row in rows}.values())
         rows.sort(key=lambda row: (row["date"], row["id"]))
         if not rows:
             raise RuntimeError("Power 6/55 fallback returned no validated draws")
+
         logger.info(f"fallback parsed {len(rows)} Power 6/55 draws, latest={rows[-1]['id']}")
         self._store_fallback_rows(rows)
         return True
 
     def _store_fallback_rows(self, rows: List[Dict]) -> None:
         import polars as pl
+
         current_count = 0
+        incoming = pl.DataFrame(rows).with_columns(
+            pl.col("id").cast(pl.Utf8),
+            pl.col("date").cast(pl.Utf8),
+        )
+
         if self.product_config.raw_path.exists():
             current = pl.read_ndjson(self.product_config.raw_path).with_columns(
-                pl.col("id").cast(pl.Utf8), pl.col("date").cast(pl.Utf8)
+                pl.col("id").cast(pl.Utf8),
+                pl.col("date").cast(pl.Utf8),
             )
             current_count = len(current)
-            existing_ids = set(current["id"].to_list())
-            incoming = pl.DataFrame(rows).filter(~pl.col("id").is_in(existing_ids))
-            final = pl.concat([current, incoming], how="diagonal_relaxed")
+            incoming_ids = set(incoming["id"].to_list())
+            # Upsert by draw id so a prior malformed/stale row can be corrected.
+            retained = current.filter(~pl.col("id").is_in(incoming_ids))
+            final = pl.concat([retained, incoming], how="diagonal_relaxed")
         else:
-            final = pl.DataFrame(rows)
-        final = final.sort(["date", "id"])
+            final = incoming
+
+        final = final.unique(subset=["id"], keep="last").sort(["date", "id"])
         logger.info(
             f"fallback final min_date={final['date'].min()}, max_date={final['date'].max()}, "
             f"records={current_count}->{len(final)}, diff={len(final) - current_count}"
@@ -99,14 +127,7 @@ class ProductPower655(BaseProduct):
         final.write_ndjson(self.product_config.raw_path.absolute())
 
     def process_result(self, params, body, res_json, task_data) -> List[Dict]:
-        """
-        process 645/655 result
-        :param params:
-        :param body:
-        :param res_json:
-        :param task_data:
-        :return: list of dict data {date, id, result, process_time}
-        """
+        """Process official Power 6/55 results."""
         html = res_json.get("value", {}).get("HtmlContent")
         if not html:
             raise ValueError("Power 6/55 response does not contain HtmlContent")
@@ -116,19 +137,24 @@ class ProductPower655(BaseProduct):
             if i == 0:
                 continue
             tds = tr.find_all("td")
+            if len(tds) < 3:
+                raise ValueError("Power 6/55 result row is missing required columns")
             row = {}
-
-            row["date"] = datetime.strptime(tds[0].text, "%d/%m/%Y").strftime("%Y-%m-%d")
-            row["id"] = tds[1].text
-
-            # last number of special
-            row["result"] = [int(span.text) for span in tds[2].find_all("span") if span.text.strip() != "|"]
+            row["date"] = datetime.strptime(tds[0].text.strip(), "%d/%m/%Y").strftime("%Y-%m-%d")
+            row["id"] = tds[1].text.strip()
+            row["result"] = [
+                int(span.text.strip())
+                for span in tds[2].find_all("span")
+                if span.text.strip() != "|"
+            ]
             if len(row["result"]) != 7:
                 raise ValueError(f"Power 6/55 row {row['id']} has {len(row['result'])} numbers")
-            if len(set(row["result"][:6])) != 6:
-                raise ValueError(f"Power 6/55 row {row['id']} has duplicate main numbers")
-            if row["result"][6] in row["result"][:6]:
-                raise ValueError(f"Power 6/55 row {row['id']} repeats the special number in the main six")
+            if (
+                len(set(row["result"][:6])) != 6
+                or any(n < 1 or n > 55 for n in row["result"])
+                or row["result"][6] in row["result"][:6]
+            ):
+                raise ValueError(f"Power 6/55 row {row['id']} has an invalid 6+1 result")
             row["process_time"] = datetime.now().isoformat()
             data.append(row)
         return data
