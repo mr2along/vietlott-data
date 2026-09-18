@@ -240,8 +240,10 @@ def test_all_strategies_backtest_pipeline(factory, name, df):
 
 def test_legacy_strategies_ignore_power655_special_number(df):
     target = df["date"].iloc[-1] + timedelta(days=3)
+    df = df.copy(deep=True)
+    df["result"] = df["result"].apply(lambda x: list(x) + [54])
     changed = df.copy(deep=True)
-    changed["result"] = changed["result"].apply(lambda x: list(x) + [55])
+    changed["result"] = changed["result"].apply(lambda x: list(x[:6]) + [55])
     factories = [
         lambda d: LongAbsenceStrategy(d, time_predict=1, top_n=10),
         lambda d: PatternStrategy(d, time_predict=1, lookback_days=90, pattern_weight=0.6),
