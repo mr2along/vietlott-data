@@ -48,3 +48,37 @@ def test_portfolio_ignores_special_number():
     first = [tuple(first_model.predict(date(2026, 1, 13))) for _ in range(30)]
     second = [tuple(second_model.predict(date(2026, 1, 13))) for _ in range(30)]
     assert first == second
+
+def test_portfolio_usage_cap_preserves_coverage():
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=24,
+        max_number_usage=8,
+    )
+    tickets = [tuple(model.predict(date(2026, 1, 13))) for _ in range(30)]
+    usage = {
+        number: sum(number in ticket for ticket in tickets)
+        for number in range(1, 56)
+        if any(number in ticket for ticket in tickets)
+    }
+    assert len(tickets) == 30
+    assert len(set(tickets)) == 30
+    assert len(usage) == 24
+    assert max(usage.values()) <= 8
+    assert sum(usage.values()) == 180
+
+
+def test_portfolio_usage_cap_rejects_insufficient_capacity():
+    try:
+        PortfolioEnsembleStrategy(
+            _history(),
+            tickets_per_draw=30,
+            candidate_pool_size=24,
+            max_number_usage=7,
+        )
+    except ValueError as exc:
+        assert "capacity" in str(exc)
+    else:
+        raise AssertionError("expected insufficient capacity to fail")
