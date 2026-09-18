@@ -214,7 +214,7 @@ STRATEGY_NAMES = [
 ]
 
 
-@pytest.mark.parametrize("factory,name", zip(STRATEGY_FACTORIES, STRATEGY_NAMES))
+@pytest.mark.parametrize("factory,name", list(zip(STRATEGY_FACTORIES, STRATEGY_NAMES)))
 def test_all_strategies_predict_valid(factory, name, df):
     """Every strategy must return a valid ticket for an unseen future date."""
     model = factory(df)
@@ -236,6 +236,28 @@ def test_all_strategies_backtest_pipeline(factory, name, df):
     assert profit == gain - cost, f"{name}: profit must equal gain - cost"
     assert model.df_backtest_evaluate is not None
     assert not model.df_backtest_evaluate.empty
+
+
+def test_legacy_strategies_ignore_power655_special_number(df):
+    target = df["date"].iloc[-1] + timedelta(days=3)
+    changed = df.copy(deep=True)
+    changed["result"] = changed["result"].apply(lambda x: list(x) + [55])
+    factories = [
+        lambda d: LongAbsenceStrategy(d, time_predict=1, top_n=10),
+        lambda d: PatternStrategy(d, time_predict=1, lookback_days=90, pattern_weight=0.6),
+        lambda d: HotNumbersStrategy(d, time_predict=1, lookback_days=90),
+        lambda d: ColdNumbersStrategy(d, time_predict=1, lookback_days=90),
+        lambda d: NotRepeatStrategy(d, time_predict=1, lookback_days=14),
+        lambda d: ExponentialDecayStrategy(d, time_predict=1, half_life_days=30, selection_weight=1.0),
+        lambda d: PairFrequencyStrategy(d, time_predict=1, lookback_days=90),
+        lambda d: MarkovChainStrategy(d, time_predict=1, lookback_days=90),
+    ]
+    for factory in factories:
+        random.seed(123)
+        first = factory(df).predict(target)
+        random.seed(123)
+        second = factory(changed).predict(target)
+        assert first == second
 
 
 # ---------------------------------------------------------------------------
