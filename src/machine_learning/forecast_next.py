@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections import Counter
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -64,6 +65,30 @@ def load_complete_rows(path: Path) -> list[dict]:
     return rows
 
 
+def portfolio_stats(portfolio: list[list[int]]) -> dict[str, object]:
+    usage = Counter(n for ticket in portfolio for n in ticket)
+    overlaps: list[int] = []
+    for index, ticket in enumerate(portfolio):
+        ticket_set = set(ticket)
+        for other in portfolio[index + 1 :]:
+            overlaps.append(len(ticket_set.intersection(other)))
+
+    pair_count = len(overlaps)
+    average_overlap = sum(overlaps) / pair_count if pair_count else 0.0
+    histogram = {
+        str(k): overlaps.count(k)
+        for k in sorted(set(overlaps))
+    }
+    return {
+        "unique_numbers_used": len(usage),
+        "number_usage": dict(sorted(usage.items())),
+        "max_number_usage": max(usage.values(), default=0),
+        "min_number_usage": min(usage.values(), default=0),
+        "average_pairwise_overlap": average_overlap,
+        "pairwise_overlap_histogram": histogram,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -77,7 +102,18 @@ def main() -> None:
         default=30,
         help="Number of PortfolioEnsemble tickets to emit",
     )
+    parser.add_argument(
+        "--max-number-usage",
+        type=int,
+        default=8,
+        help="Maximum appearances of one candidate number across the portfolio",
+    )
     args = parser.parse_args()
+
+    if args.tickets < 1:
+        raise ValueError("--tickets must be >= 1")
+    if args.max_number_usage < 1:
+        raise ValueError("--max-number-usage must be >= 1")
 
     rows = load_complete_rows(Path(args.data))
     last = rows[-1]
@@ -101,6 +137,7 @@ def main() -> None:
             tickets_per_draw=args.tickets,
             candidate_pool_size=24,
             usage_penalty=0.35,
+            max_number_usage=args.max_number_usage,
         ),
     }
 
@@ -123,10 +160,13 @@ def main() -> None:
         "target_draw_weekday": target.strftime("%A"),
         "dataset_rows": len(rows),
         "predictions": predictions,
+        "portfolio_stats": portfolio_stats(portfolio),
         "method": {
             "main_numbers_only": True,
             "special_used_as_feature": False,
             "portfolio_tickets": args.tickets,
+            "candidate_pool_size": 24,
+            "max_number_usage": args.max_number_usage,
             "rank_ensemble_weights": {
                 "Bayesian": 0.35,
                 "ExponentialDecay": 0.35,
