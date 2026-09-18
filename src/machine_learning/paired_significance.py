@@ -65,10 +65,20 @@ def main() -> None:
             "conclusion_at_0_05": "evidence_better_than_random" if p_value < 0.05 else "no_evidence_better_than_random",
         }
 
+    m = max(1, len(results))
+    for value in results.values():
+        raw_p = float(value["empirical_p_value_one_sided"])
+        value["bonferroni_adjusted_p_value"] = min(1.0, raw_p * m)
+        value["conclusion_at_0_05_bonferroni"] = (
+            "evidence_better_than_random"
+            if value["bonferroni_adjusted_p_value"] < 0.05
+            else "no_evidence_better_than_random"
+        )
     report = {
         "method": "paired per-draw Monte Carlo test aligned by historical draw index",
         "random_runs": int(mc.shape[0]),
         "random_draws": int(mc.shape[1]),
+        "multiple_testing": "Bonferroni correction across strategies",
         "description": "Each strategy is compared with random tickets against the same historical draws; strategies with a longer warm-up are aligned by draw index.",
         "results": results,
     }
