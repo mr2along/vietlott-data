@@ -4,10 +4,6 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "30 18 * * *"
-  push:
-    paths:
-      - "src/vietlott/**"
-      - ".github/workflows/crawl.yml"
 
 permissions:
   contents: write
@@ -34,13 +30,13 @@ jobs:
           pip install -e .
       - name: Crawl latest data
         run: |
-          vietlott-crawl power_655 --index-from 0 --index-to 1
-          vietlott-crawl power_645 --index-from 0 --index-to 1
-          vietlott-crawl power_535 --index-from 0 --index-to 1
-          vietlott-crawl 3d --index-from 0 --index-to 1
-          vietlott-crawl 3d_pro --index-from 0 --index-to 1
-          vietlott-crawl bingo18 --index-from 0 --index-to 1
-          vietlott-crawl keno --index-from 0 --index-to 24
+          vietlott-crawl power_655 --index_from 0 --index_to 1
+          vietlott-crawl power_645 --index_from 0 --index_to 1
+          vietlott-crawl power_535 --index_from 0 --index_to 1
+          vietlott-crawl 3d --index_from 0 --index_to 1
+          vietlott-crawl 3d_pro --index_from 0 --index_to 1
+          vietlott-crawl bingo18 --index_from 0 --index_to 1
+          vietlott-crawl keno --index_from 0 --index_to 24
       - name: Regenerate documentation
         run: |
           python src/render_readme.py
