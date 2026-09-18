@@ -51,7 +51,7 @@ class ProductPower655(BaseProduct):
         text = BeautifulSoup(res.text, "lxml").get_text(" ", strip=True)
         pattern = re.compile(
             r"KẾT QUẢ XỔ SỐ POWER 6/55\s*-\s*NGÀY:\s*(\d{2}/\d{2}/\d{4}).*?"
-            r"Kỳ vé:\s*#?(\d{5}).*?Ngày quay thưởng.*?(.*?)Giải thưởng",
+            r"Kỳ vé:\s*#?(\d{5}).*?Ngày quay thưởng\s*\d{2}/\d{2}/\d{4}\s*(.*?)Giải thưởng",
             re.IGNORECASE,
         )
         rows: List[Dict] = []
