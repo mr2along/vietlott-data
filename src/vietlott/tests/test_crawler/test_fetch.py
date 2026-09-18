@@ -64,3 +64,31 @@ def test_fetch_raises_on_permanent_client_error(monkeypatch):
 
     with pytest.raises(RuntimeError, match="HTTP 403"):
         _wrapper()(_tasks())
+
+
+def test_power655_fallback_parses_validated_rows(monkeypatch, tmp_path):
+    html = """
+    <html><body>
+    <h4>KẾT QUẢ XỔ SỐ POWER 6/55 - NGÀY: 17/09/2026</h4>
+    <div>Thứ năm Kỳ vé: #01399 | Ngày quay thưởng 17/09/2026
+      06 11 25 27 37 45 15
+    </div>
+    <div>Giải thưởng</div>
+    </body></html>
+    """
+
+    class Resp:
+        text = html
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr(
+        "vietlott.crawler.products.power655.requests.get",
+        lambda *args, **kwargs: Resp(),
+    )
+    product = ProductPower655()
+    product.product_config.raw_path = tmp_path / "power655.jsonl"
+    assert product.crawl_fallback("2026-09-18", 0, 1) is True
+    row = product.product_config.raw_path.read_text().strip()
+    assert '"id":"01399"' in row
+    assert '"result":[6,11,25,27,37,45,15]' in row

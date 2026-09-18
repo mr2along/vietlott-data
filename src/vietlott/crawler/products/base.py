@@ -57,6 +57,10 @@ class BaseProduct:
     def process_result(self, params, body, res_json, task_data):
         pass
 
+    def crawl_fallback(self, run_date_str: str, index_from: int, index_to: int) -> bool:
+        """Optional fallback used when the official endpoint blocks the runner."""
+        raise RuntimeError("no fallback crawler configured")
+
     def crawl(self, run_date_str: str, index_from: int = 0, index_to: int = 1) -> bool:
         """
         spawn multiple worker to get data from vietlott
@@ -105,8 +109,14 @@ class BaseProduct:
             self.cookies,
         )
 
-        with ThreadPoolExecutor(max_workers=self.product_config.num_thread) as pool:
-            results = pool.map(fetch_fn, tasks)
+        try:
+            with ThreadPoolExecutor(max_workers=self.product_config.num_thread) as pool:
+                results = list(pool.map(fetch_fn, tasks))
+        except RuntimeError as exc:
+            if "HTTP 403" not in str(exc):
+                raise
+            logger.warning(f"official Vietlott endpoint returned 403; trying validated fallback: {exc}")
+            return self.crawl_fallback(run_date_str, index_from, index_to)
 
         # flatten results, as it is 3 level deep
         date_dict = defaultdict(list)
