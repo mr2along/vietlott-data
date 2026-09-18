@@ -24,10 +24,10 @@ class ReadmeTemplates:
         """Get the main header with badges and description."""
         return """# 🎰 Vietlott Data
 
-[![GitHub Actions](https://github.com/vietvudanh/vietlott-data/workflows/crawl/badge.svg)](https://github.com/vietvudanh/vietlott-data/actions)
+[![GitHub Actions](https://github.com/mr2along/vietlott-data/workflows/crawl/badge.svg)](https://github.com/mr2along/vietlott-data/actions)
 [![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Data Updated](https://img.shields.io/badge/data-daily%20updated-brightgreen.svg)](https://github.com/vietvudanh/vietlott-data/commits/main)
+[![Data Updated](https://img.shields.io/badge/data-daily%20updated-brightgreen.svg)](https://github.com/mr2along/vietlott-data/commits/main)
 [![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Deployed-blue)](https://vietvudanh.github.io/vietlott-data/)
 
 > 📊 **Automated Vietnamese Lottery Data Collection & Analysis**
@@ -104,7 +104,7 @@ The data collection works by:
 ### 📦 Install via pip
 
 ```bash
-pip install -i vietlott-data
+pip install vietlott-data
 ```
 
 ### 💻 Command Line Interface
@@ -137,7 +137,7 @@ vietlott-missing [OPTIONS] PRODUCT
 
 ```bash
 # Clone the repository
-git clone https://github.com/vietvudanh/vietlott-data.git ; cd vietlott-data
+git clone https://github.com/mr2along/vietlott-data.git ; cd vietlott-data
 
 # Install dependencies (recommend using uv and virtual environment)
 uv sync --dev
@@ -333,23 +333,24 @@ class ReadmeGenerator:
 
         try:
             # Calculate stats for different periods
-            stats_all = self._balance_long_df(self._calculate_stats(df))
+            analysis_df = df.with_columns(pl.col("result").list.slice(0, 6))
+            stats_all = self._balance_long_df(self._calculate_stats(analysis_df))
 
             current_date = datetime.now().date()
             stats_30d = self._balance_long_df(
-                self._calculate_stats(df.filter(pl.col("date") >= (current_date - timedelta(days=30))))
+                self._calculate_stats(df.filter(pl.col("date") >= (current_date - timedelta(days=30))).with_columns(pl.col("result").list.slice(0, 6)))
             )
             stats_60d = self._balance_long_df(
-                self._calculate_stats(df.filter(pl.col("date") >= (current_date - timedelta(days=60))))
+                self._calculate_stats(df.filter(pl.col("date") >= (current_date - timedelta(days=60))).with_columns(pl.col("result").list.slice(0, 6)))
             )
             stats_90d = self._balance_long_df(
-                self._calculate_stats(df.filter(pl.col("date") >= (current_date - timedelta(days=90))))
+                self._calculate_stats(df.filter(pl.col("date") >= (current_date - timedelta(days=90))).with_columns(pl.col("result").list.slice(0, 6)))
             )
 
             recent_results = df.head(10)
 
             # Days since last appearance
-            days_since_all = self._calculate_days_since_last_appearance(df)
+            days_since_all = self._calculate_days_since_last_appearance(analysis_df)
             top10_days_since = days_since_all.head(10)
 
             # Convert to markdown
