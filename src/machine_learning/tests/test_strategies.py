@@ -11,6 +11,7 @@ Covers:
 import random
 from datetime import date, timedelta
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -256,8 +257,10 @@ def test_legacy_strategies_ignore_power655_special_number(df):
     ]
     for factory in factories:
         random.seed(123)
+        np.random.seed(123)
         first = factory(df).predict(target)
         random.seed(123)
+        np.random.seed(123)
         second = factory(changed).predict(target)
         assert first == second
 
