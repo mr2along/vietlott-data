@@ -1,4 +1,9 @@
-"""Deterministic 30-ticket portfolio built from ensemble number scores."""
+"""Deterministic portfolio built from ensemble number scores.
+
+The optional usage cap turns the score-ranked portfolio into a coverage-aware
+portfolio: high-scoring numbers remain preferred, but no candidate can consume
+more than the configured share of the 30-ticket budget.
+"""
 
 from __future__ import annotations
 
@@ -10,12 +15,11 @@ from .rank_ensemble import RankEnsembleStrategy
 
 
 class PortfolioEnsembleStrategy(RankEnsembleStrategy):
-    """Generate a diversified ticket portfolio from ensemble scores.
+    """Generate a score-driven six-number ticket portfolio.
 
-    The first call for a target date builds exactly ``tickets_per_draw``
-    distinct six-number tickets. Later calls return the next ticket so the
-    existing backtest loop can evaluate the full portfolio without changing
-    its interface.
+    "max_number_usage" is disabled by default to preserve the historical V2
+    benchmark behavior. Forecasting can enable it to reduce concentration and
+    spread the fixed ticket budget across the candidate pool.
     """
 
     def __init__(
@@ -26,6 +30,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         tickets_per_draw: int = 30,
         candidate_pool_size: int = 24,
         usage_penalty: float = 0.35,
+        max_number_usage: int | None = None,
     ) -> None:
         super().__init__(df, time_predict=time_predict, weights=weights)
         if tickets_per_draw <= 0:
@@ -36,10 +41,22 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             raise ValueError("candidate_pool_size exceeds number range")
         if usage_penalty < 0:
             raise ValueError("usage_penalty must be non-negative")
+        if max_number_usage is not None:
+            if max_number_usage < 1:
+                raise ValueError("max_number_usage must be >= 1")
+            capacity = int(max_number_usage) * int(candidate_pool_size)
+            required = int(tickets_per_draw) * self.number_predict
+            if capacity < required:
+                raise ValueError(
+                    "max_number_usage does not provide enough portfolio capacity"
+                )
 
         self.tickets_per_draw = int(tickets_per_draw)
         self.candidate_pool_size = int(candidate_pool_size)
         self.usage_penalty = float(usage_penalty)
+        self.max_number_usage = (
+            int(max_number_usage) if max_number_usage is not None else None
+        )
         self._portfolio_cache: dict[date, list[list[int]]] = {}
         self._next_index: dict[date, int] = {}
 
@@ -55,8 +72,21 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             available = list(pool)
             chosen: list[int] = []
             for slot in range(self.number_predict):
+                under_cap = [
+                    n
+                    for n in available
+                    if self.max_number_usage is None
+                    or usage[n] < self.max_number_usage
+                ]
+                # Defensive fallback keeps the ticket valid if intermediate
+                # constraints leave fewer than six under-cap candidates.
+                candidates = (
+                    under_cap
+                    if len(under_cap) >= self.number_predict - slot
+                    else available
+                )
                 ranked = sorted(
-                    available,
+                    candidates,
                     key=lambda n: (
                         -(scores[n] - self.usage_penalty * usage[n]),
                         (n + ticket_idx + slot) % self.candidate_pool_size,
@@ -69,23 +99,55 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
 
             ticket = tuple(sorted(chosen))
             if ticket in seen:
-                # Deterministic repair: rotate one candidate from the pool.
-                for replacement in pool:
-                    if replacement in ticket:
+                # Deterministic repair: replace the weakest member with the
+                # best unused candidate that preserves the usage cap.
+                repair_candidates = sorted(
+                    (n for n in pool if n not in ticket),
+                    key=lambda n: (
+                        -(scores[n] - self.usage_penalty * usage[n]),
+                        n,
+                    ),
+                )
+                for replacement in repair_candidates:
+                    if (
+                        self.max_number_usage is not None
+                        and usage[replacement] >= self.max_number_usage
+                    ):
                         continue
-                    repaired = list(ticket[:-1]) + [replacement]
+                    repaired = list(ticket)
+                    weakest_index = min(
+                        range(len(repaired)),
+                        key=lambda i: (
+                            scores[repaired[i]]
+                            - self.usage_penalty * usage[repaired[i]],
+                            -repaired[i],
+                        ),
+                    )
+                    repaired[weakest_index] = replacement
                     repaired_tuple = tuple(sorted(set(repaired)))
-                    if len(repaired_tuple) == self.number_predict and repaired_tuple not in seen:
+                    if (
+                        len(repaired_tuple) == self.number_predict
+                        and repaired_tuple not in seen
+                    ):
                         ticket = repaired_tuple
                         break
+
+            if ticket in seen:
+                raise RuntimeError(
+                    f"failed to create distinct portfolio ticket {ticket_idx + 1}"
+                )
 
             seen.add(ticket)
             tickets.append(list(ticket))
             for number in ticket:
                 usage[number] += 1
 
-        if len(tickets) != len(seen):
-            raise RuntimeError("failed to build distinct portfolio")
+        if len(tickets) != self.tickets_per_draw or len(seen) != self.tickets_per_draw:
+            raise RuntimeError("failed to build requested distinct portfolio")
+
+        if self.max_number_usage is not None:
+            assert max(usage.values(), default=0) <= self.max_number_usage
+
         return tickets
 
     def predict(self, target_date: date) -> list[int]:
