@@ -41,7 +41,8 @@ class PredictModel:
     number_predict = 6
     ticket_price = 10000
 
-    prices = {6: 40_000_000_000, 5: 5_000_000_000, 4: 500000, 3: 50000}
+    prices = {6: 30_000_000_000, 5: 40_000_000, 4: 500_000, 3: 50_000}
+    jackpot2_price = 3_000_000_000
 
     col_date = "date"
     col_result = "result"
@@ -102,10 +103,10 @@ class PredictModel:
             ``is_full_match`` is ``True`` only when every element of ``l1``
             appears in ``l2``.
         """
-        l1_s = set(l1)
-        l2_s = set(l2)
-        inter = l1_s.intersection(l2_s)
-        return len(inter) == len(l1), len(inter)
+        actual = list(l1)[: cls.number_predict]
+        predicted = list(l2)
+        inter = set(actual).intersection(predicted)
+        return len(inter) == len(actual), len(inter)
 
     # ------------------------------------------------------------------
     # Core interface
@@ -161,15 +162,19 @@ class PredictModel:
 
         def fn_apply(row):
             predicted = []
+            actual = list(row.result)
+            actual_main = actual[: self.number_predict]
+            special = actual[self.number_predict] if len(actual) > self.number_predict else None
             for i in range(self.time_predict):
                 loop_predict = self.predict(row.date)
-                correct, correct_num = self._compare_list(row.result, loop_predict)
+                correct, correct_num = self._compare_list(actual_main, loop_predict)
                 predicted.append(
                     {
                         PredictModel.col_predict + "_idx": i,
                         PredictModel.col_predict: loop_predict,
                         PredictModel.col_correct: correct,
                         PredictModel.col_correct_num: correct_num,
+                        "special_match": bool(special is not None and int(special) in loop_predict),
                     }
                 )
 
@@ -212,6 +217,16 @@ class PredictModel:
             All values in VND.  ``profit = gain - cost``.
         """
         cost = len(self.df_backtest_evaluate) * self.ticket_price
-        gain = self.df_backtest_evaluate[PredictModel.col_correct_num].map(self.prices).fillna(0).astype(int).sum()
-
+        matches = self.df_backtest_evaluate[PredictModel.col_correct_num].astype(int)
+        special = (
+            self.df_backtest_evaluate["special_match"].astype(bool)
+            if "special_match" in self.df_backtest_evaluate
+            else pd.Series(False, index=self.df_backtest_evaluate.index)
+        )
+        gain = 0
+        gain += int((matches == 6).sum()) * self.prices[6]
+        gain += int(((matches == 5) & special).sum()) * self.jackpot2_price
+        gain += int(((matches == 5) & ~special).sum()) * self.prices[5]
+        gain += int((matches == 4).sum()) * self.prices[4]
+        gain += int((matches == 3).sum()) * self.prices[3]
         return cost, gain, gain - cost

@@ -29,7 +29,7 @@ The project uses Github Actions with config to schedule the run daily to crawl &
 ## Development Setup
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/vietvudanh/vietlott-data.git
+    git clone https://github.com/mr2along/vietlott-data.git
     cd vietlott-data
     ```
 

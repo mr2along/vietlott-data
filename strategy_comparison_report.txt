@@ -1,43 +1,12 @@
 Strategy Comparison Report
-==================================================
+==================================
 
-Strategy: RandomModel
-Parameters: {'time_predict': 1}
-ROI: -80.77%
-Win Rate: 0.04%
-Avg Matches: 0.88
-Net Profit: -420,000 VND
-Total Predictions: 52
-------------------------------
-Strategy: FrequencyStrategy
-Parameters: {'lookback_days': 365, 'strategy_type': 'hot', 'selection_weight': 0.7}
-ROI: -90.38%
-Win Rate: 0.02%
-Avg Matches: 0.69
-Net Profit: -470,000 VND
-Total Predictions: 52
-------------------------------
-Strategy: PatternStrategy
-Parameters: {'lookback_days': 180, 'pattern_weight': 0.6}
-ROI: -90.38%
-Win Rate: 0.02%
-Avg Matches: 0.77
-Net Profit: -470,000 VND
-Total Predictions: 52
-------------------------------
-Strategy: NotRepeatStrategy
-Parameters: {'lookback_days': 30, 'avoid_weight': 0.8}
-ROI: -100.00%
-Win Rate: 0.00%
-Avg Matches: 0.60
-Net Profit: -520,000 VND
-Total Predictions: 52
-------------------------------
-Strategy: FrequencyStrategy
-Parameters: {'lookback_days': 365, 'strategy_type': 'cold', 'selection_weight': 0.7}
-ROI: -100.00%
-Win Rate: 0.00%
-Avg Matches: 0.73
-Net Profit: -520,000 VND
-Total Predictions: 52
-------------------------------
+This file is a compatibility marker only.
+
+The historical values previously stored here came from the legacy backtest
+pipeline and are not a canonical Power 6/55 benchmark because that pipeline
+mixed the special number with the six main numbers and used an incompatible
+prize mapping.
+
+Use artifacts/backtest_v2/ and the Backtest V2 Final GitHub Actions workflow
+for current research results.

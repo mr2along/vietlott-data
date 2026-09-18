@@ -323,11 +323,12 @@ class StrategyBacktester:
 
         # Prize structure for Power 6/55
         self.prizes = {
-            6: 40_000_000_000,  # Jackpot
-            5: 5_000_000_000,  # Second prize
-            4: 500_000,  # Third prize
-            3: 50_000,  # Fourth prize
+            6: 30_000_000_000,
+            5: 40_000_000,
+            4: 500_000,
+            3: 50_000,
         }
+        self.jackpot2 = 3_000_000_000
 
     def _validate_dataframe(self, df: pd.DataFrame) -> None:
         """
@@ -400,8 +401,12 @@ class StrategyBacktester:
         if hasattr(strategy_class, "validate_params"):
             strategy_class.validate_params(params)
 
-    def _calculate_revenue(self, matches_count: int) -> float:
-        """Calculate revenue based on number of matches."""
+    def _calculate_revenue(self, matches_count: int, special_hit: bool = False) -> float:
+        """Calculate Power 6/55 prize using six main matches plus special."""
+        if matches_count == 6:
+            return self.prizes[6]
+        if matches_count == 5 and special_hit:
+            return self.jackpot2
         return self.prizes.get(matches_count, 0)
 
     def _calculate_sharpe_ratio(self, profit_series: List[float]) -> float:
@@ -596,9 +601,12 @@ class StrategyBacktester:
                     continue
 
                 # Calculate matches
-                matches = len(set(predicted) & set(actual))
+                actual_values = [int(x) for x in actual]
+                main = set(actual_values[:6])
+                matches = len(set(predicted) & main)
+                special_hit = len(actual_values) == 7 and actual_values[6] in predicted
                 cost = self.ticket_price * strategy.time_predict
-                revenue = self._calculate_revenue(matches)
+                revenue = self._calculate_revenue(matches, special_hit)
 
                 results.append(
                     {

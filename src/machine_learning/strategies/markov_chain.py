@@ -132,14 +132,14 @@ class MarkovChainStrategy(PredictModel):
             return None, defaultdict(lambda: defaultdict(float))
 
         # Most-recent draw before target_date is the Markov state.
-        prev_draw: List[int] = past.iloc[-1]["result"]
+        prev_draw: List[int] = list(past.iloc[-1]["result"])[:6]
 
         # Build transition matrix over the lookback window.
         window = past[past["date"] >= start_date]
         if window.empty:
             return prev_draw, defaultdict(lambda: defaultdict(float))
 
-        results_list: List[List[int]] = window["result"].tolist()
+        results_list: List[List[int]] = [list(x)[:6] for x in window["result"].tolist()]
         matrix: Dict[int, Dict[int, float]] = defaultdict(lambda: defaultdict(float))
 
         for i in range(len(results_list) - 1):

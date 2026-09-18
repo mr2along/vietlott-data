@@ -49,6 +49,7 @@ class BaseProduct:
 
         if self.product_config.use_cookies:
             self.vietlott_cookie, self.cookies = get_vietlott_cookie()
+            self.headers = self.headers.copy()
             self.headers.update({"Cookie": self.vietlott_cookie})
         else:
             self.vietlott_cookie, self.cookies = None, None
@@ -73,8 +74,10 @@ class BaseProduct:
         if index_to == index_from:
             index_to += 1
 
-        pool = ThreadPoolExecutor(self.product_config.num_thread)
-        page_per_task = math.ceil((index_to - index_from) / self.product_config.num_thread)
+        if index_to <= index_from:
+            index_to = index_from + 1
+        page_count = index_to - index_from
+        page_per_task = max(1, math.ceil(page_count / self.product_config.num_thread))
         tasks = collections_helper.chunks_iter(
             [
                 {
@@ -85,13 +88,13 @@ class BaseProduct:
                         "run_date_str": run_date_str,
                     },
                 }
-                for i in range(index_from, index_to + 1)
+                for i in range(index_from, index_to)
             ],
             page_per_task,
         )
 
         logger.info(
-            f"there are {index_to - index_from} pages, from {index_from}->{index_to}, {page_per_task} page per task"
+            f"there are {page_count} pages, from {index_from}..{index_to - 1}, {page_per_task} page per task"
         )
         fetch_fn = fetch.fetch_wrapper(
             self.url,
@@ -102,7 +105,8 @@ class BaseProduct:
             self.cookies,
         )
 
-        results = pool.map(fetch_fn, tasks)
+        with ThreadPoolExecutor(max_workers=self.product_config.num_thread) as pool:
+            results = pool.map(fetch_fn, tasks)
 
         # flatten results, as it is 3 level deep
         date_dict = defaultdict(list)

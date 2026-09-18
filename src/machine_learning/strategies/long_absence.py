@@ -60,7 +60,9 @@ class LongAbsenceStrategy(PredictModel):
         # Build mapping: number -> most recent date it appeared (vectorised)
         last_seen: dict = {}
         if not past_data.empty:
-            exploded = past_data.explode("result")
+            exploded = past_data.copy()
+            exploded["result"] = exploded["result"].apply(lambda x: list(x)[:6])
+            exploded = exploded.explode("result")
             last_seen = exploded.groupby("result")["date"].max().to_dict()
 
         all_numbers = list(range(self.min_val, self.max_val + 1))

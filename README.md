@@ -1,9 +1,9 @@
 # 🎰 Vietlott Data
 
-[![GitHub Actions](https://github.com/vietvudanh/vietlott-data/workflows/crawl/badge.svg)](https://github.com/vietvudanh/vietlott-data/actions)
+[![GitHub Actions](https://github.com/mr2along/vietlott-data/workflows/crawl/badge.svg)](https://github.com/mr2along/vietlott-data/actions)
 [![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Data Updated](https://img.shields.io/badge/data-daily%20updated-brightgreen.svg)](https://github.com/vietvudanh/vietlott-data/commits/main)
+[![Data Updated](https://img.shields.io/badge/data-daily%20updated-brightgreen.svg)](https://github.com/mr2along/vietlott-data/commits/main)
 [![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Deployed-blue)](https://vietvudanh.github.io/vietlott-data/)
 
 > 📊 **Automated Vietnamese Lottery Data Collection & Analysis**
@@ -278,7 +278,7 @@ The data collection works by:
 ### 📦 Install via pip
 
 ```bash
-pip install -i vietlott-data
+pip install vietlott-data
 ```
 
 ### 💻 Command Line Interface
@@ -311,7 +311,7 @@ vietlott-missing [OPTIONS] PRODUCT
 
 ```bash
 # Clone the repository
-git clone https://github.com/vietvudanh/vietlott-data.git ; cd vietlott-data
+git clone https://github.com/mr2along/vietlott-data.git ; cd vietlott-data
 
 # Install dependencies (recommend using uv and virtual environment)
 uv sync --dev

@@ -41,7 +41,10 @@ class ProductPower655(BaseProduct):
         :param task_data:
         :return: list of dict data {date, id, result, process_time}
         """
-        soup = BeautifulSoup(res_json.get("value", {}).get("HtmlContent"), "lxml")
+        html = res_json.get("value", {}).get("HtmlContent")
+        if not html:
+            raise ValueError("Power 6/55 response does not contain HtmlContent")
+        soup = BeautifulSoup(html, "lxml")
         data = []
         for i, tr in enumerate(soup.select("table tr")):
             if i == 0:
@@ -54,7 +57,12 @@ class ProductPower655(BaseProduct):
 
             # last number of special
             row["result"] = [int(span.text) for span in tds[2].find_all("span") if span.text.strip() != "|"]
+            if len(row["result"]) != 7:
+                raise ValueError(f"Power 6/55 row {row['id']} has {len(row['result'])} numbers")
+            if len(set(row["result"][:6])) != 6:
+                raise ValueError(f"Power 6/55 row {row['id']} has duplicate main numbers")
+            if row["result"][6] in row["result"][:6]:
+                raise ValueError(f"Power 6/55 row {row['id']} repeats the special number in the main six")
             row["process_time"] = datetime.now().isoformat()
-
             data.append(row)
         return data
