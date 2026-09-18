@@ -36,36 +36,58 @@ def fetch_wrapper(
     cookies: Optional[dict],
 ):
     """Return a function that fetches a chunk of tasks with retry/backoff."""
+
     def fetch(tasks):
         tasks_str = ",".join(str(t["task_id"]) for t in tasks)
         logger.debug(f"worker start, tasks_ids={tasks_str}")
         _headers = headers.copy() if headers is not None else {}
         results = []
+
         for task in tasks:
             task_id, task_data = task["task_id"], task["task_data"]
             params = org_params.copy() if org_params is not None else {}
             body = org_body.copy()
             params.update(task_data["params"])
             body.update(task_data["body"])
+
             last_error = None
             for attempt in range(MAX_RETRIES + 1):
                 try:
-                    res = requests.post(url, data=json.dumps(body), params=params, headers=_headers, cookies=cookies, timeout=TIMEOUT)
+                    res = requests.post(
+                        url,
+                        data=json.dumps(body),
+                        params=params,
+                        headers=_headers,
+                        cookies=cookies,
+                        timeout=TIMEOUT,
+                    )
                     if res.ok:
                         break
                     if res.status_code not in {408, 425, 429} and res.status_code < 500:
-                        raise RuntimeError(f"HTTP {res.status_code} for task {task_id}: {res.text[:200]}")
-                    last_error = RuntimeError(f"HTTP {res.status_code} for task {task_id}: {res.text[:200]}")
+                        raise RuntimeError(
+                            f"HTTP {res.status_code} for task {task_id}: {res.text[:200]}"
+                        )
+                    last_error = RuntimeError(
+                        f"HTTP {res.status_code} for task {task_id}: {res.text[:200]}"
+                    )
                 except requests.RequestException as exc:
                     last_error = exc
+
                 if attempt < MAX_RETRIES:
-                    delay = BACKOFF_SECONDS * (2 ** attempt)
-                    logger.warning(f"request failed for task {task_id}, retry {attempt + 1}/{MAX_RETRIES} in {delay:.1f}s")
+                    delay = BACKOFF_SECONDS * (2**attempt)
+                    logger.warning(
+                        f"request failed for task {task_id}, "
+                        f"retry {attempt + 1}/{MAX_RETRIES} in {delay:.1f}s"
+                    )
                     time.sleep(delay)
             else:
                 raise RuntimeError(f"request failed after retries for task {task_id}: {last_error}")
+
             if not res.ok:
-                raise RuntimeError(f"request failed after retries for task {task_id}: HTTP {res.status_code}")
+                raise RuntimeError(
+                    f"request failed after retries for task {task_id}: HTTP {res.status_code}"
+                )
+
             try:
                 result = process_result_fn(params, body, res.json(), task_data)
                 results.append(result)
@@ -73,6 +95,8 @@ def fetch_wrapper(
             except json.JSONDecodeError as exc:
                 logger.error(f"json decode error, args={task_data}, text={res.text[:200]}")
                 raise exc
+
         logger.debug(f"worker done, tasks={tasks_str}")
         return results
+
     return fetch
