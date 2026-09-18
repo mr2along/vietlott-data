@@ -1,0 +1,40 @@
+name: Forecast Next Power 6/55
+
+on:
+  push:
+    branches:
+      - "forecast/next-power655-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: src
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[ml]"
+          pip install pandas numpy scikit-learn
+      - name: Refresh latest Power 6/55 draw
+        run: |
+          vietlott-crawl power_655 --index-from 0 --index-to 1
+          tail -n 3 data/power655.jsonl
+      - name: Generate next-draw forecast
+        run: python -m src.machine_learning.forecast_next --tickets 30
+      - name: Upload forecast artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: next-power655-forecast
+          path: artifacts/forecast/next_power655.json
+          if-no-files-found: error
