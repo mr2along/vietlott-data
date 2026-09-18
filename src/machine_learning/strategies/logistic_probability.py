@@ -72,7 +72,7 @@ class LogisticProbabilityStrategy(PredictModel):
         return np.column_stack(blocks).astype(np.float64)
 
     def _new_model(self) -> SGDClassifier:
-        return SGDClassifier(loss="log_loss", penalty="l2", alpha=1e-4, learning_rate="optimal", class_weight="balanced", max_iter=1, tol=None, random_state=self.random_state, average=True)
+        return SGDClassifier(loss="log_loss", penalty="l2", alpha=1e-4, learning_rate="optimal", class_weight={0: 55.0 / (2.0 * 49.0), 1: 55.0 / (2.0 * 6.0)}, max_iter=1, tol=None, random_state=self.random_state, average=True)
 
     def _reset_model(self) -> None:
         self._model = None
