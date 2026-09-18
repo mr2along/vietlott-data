@@ -107,3 +107,26 @@ def test_portfolio_excludes_historical_exact_sets():
     assert blocked_ticket not in tickets
     assert len(set(tickets)) == 30
     assert all(ticket not in {blocked_ticket} for ticket in tickets)
+
+def test_portfolio_filters_long_consecutive_runs():
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=24,
+        max_number_usage=8,
+        max_consecutive_run=3,
+    )
+    tickets = [tuple(model.predict(date(2026, 1, 13))) for _ in range(30)]
+
+    def max_run(ticket):
+        run = best = 1
+        for left, right in zip(ticket, ticket[1:]):
+            run = run + 1 if right == left + 1 else 1
+            best = max(best, run)
+        return best
+
+    assert len(set(tickets)) == 30
+    assert max(max_run(ticket) for ticket in tickets) <= 3
+    assert model._valid_shape((1, 2, 3, 4, 9, 12)) is False
+    assert model._valid_shape((1, 2, 3, 8, 9, 12)) is True
