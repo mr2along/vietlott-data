@@ -1,88 +1,66 @@
 import cattrs
+import pytest
 
-from vietlott.crawler.products import P3DPro
-from vietlott.crawler.products.p3d import P3D
-from vietlott.crawler.products.power645 import ProductPower645
 from vietlott.crawler.products.power655 import ProductPower655
 from vietlott.crawler.requests_helper import config as requests_config
 from vietlott.crawler.requests_helper.fetch import fetch_wrapper
 
 
-def test_power_655():
-    def _fn(params, body, parsed_json, task_data):
-        return parsed_json
+class FakeResponse:
+    def __init__(self, status_code=200, payload=None, text=""):
+        self.status_code = status_code
+        self._payload = payload or {"ok": True}
+        self.text = text
+        self.ok = 200 <= status_code < 300
 
-    # vietlott_cookie, cookies = get_vietlott_cookie()
-    vietlott_cookie, cookies = None, None
-    fn_fetch = fetch_wrapper(
+    def json(self):
+        return self._payload
+
+
+def _tasks():
+    return [{"task_id": "1", "task_data": {"params": {}, "body": {"PageIndex": 1}}}]
+
+
+def _wrapper():
+    return fetch_wrapper(
         ProductPower655.url,
-        dict(Cookie=vietlott_cookie, **requests_config.headers),
+        requests_config.headers,
         ProductPower655.org_params,
         cattrs.unstructure(ProductPower655.org_body),
-        _fn,
-        cookies,
+        lambda params, body, parsed_json, task_data: parsed_json,
+        None,
     )
-    resp = fn_fetch([{"task_id": "1", "task_data": {"params": {}, "body": {"PageIndex": 1}}}])
-
-    assert len(resp) == 1, "some task fail"
-    assert resp[0] is not None, "response is None"
 
 
-def test_power_645():
-    def _fn(params, body, parsed_json, task_data):
-        return parsed_json
+def test_fetch_success_is_deterministic(monkeypatch):
+    calls = []
 
-    # vietlott_cookie, cookies = get_vietlott_cookie()
-    vietlott_cookie, cookies = None, None
-    fn_fetch = fetch_wrapper(
-        ProductPower645.url,
-        dict(Cookie=vietlott_cookie, **requests_config.headers),
-        ProductPower645.org_params,
-        cattrs.unstructure(ProductPower645.org_body),
-        _fn,
-        cookies,
+    def fake_post(*args, **kwargs):
+        calls.append(kwargs["data"])
+        return FakeResponse()
+
+    monkeypatch.setattr("vietlott.crawler.requests_helper.fetch.requests.post", fake_post)
+    assert _wrapper()(_tasks()) == [{"ok": True}]
+    assert len(calls) == 1
+
+
+def test_fetch_retries_transient_failure(monkeypatch):
+    responses = iter([FakeResponse(503, text="temporary"), FakeResponse(200, {"ok": True})])
+
+    monkeypatch.setattr(
+        "vietlott.crawler.requests_helper.fetch.requests.post",
+        lambda *args, **kwargs: next(responses),
     )
-    resp = fn_fetch([{"task_id": "1", "task_data": {"params": {}, "body": {"PageIndex": 1}}}])
+    monkeypatch.setattr("vietlott.crawler.requests_helper.fetch.time.sleep", lambda _: None)
 
-    assert len(resp) == 1, "some task fail"
-    assert resp[0] is not None, "response is None"
+    assert _wrapper()(_tasks()) == [{"ok": True}]
 
 
-def test_power_3d():
-    def _fn(params, body, parsed_json, task_data):
-        return parsed_json
-
-    # vietlott_cookie, cookies = get_vietlott_cookie()
-    vietlott_cookie, cookies = None, None
-    fn_fetch = fetch_wrapper(
-        P3D.url,
-        dict(Cookie=vietlott_cookie, **requests_config.headers),
-        P3D.org_params,
-        cattrs.unstructure(P3D.org_body),
-        _fn,
-        cookies,
+def test_fetch_raises_on_permanent_client_error(monkeypatch):
+    monkeypatch.setattr(
+        "vietlott.crawler.requests_helper.fetch.requests.post",
+        lambda *args, **kwargs: FakeResponse(403, text="forbidden"),
     )
-    resp = fn_fetch([{"task_id": "1", "task_data": {"params": {}, "body": {"PageIndex": 1}}}])
-    print(resp)
 
-    assert len(resp) == 1, "some task fail"
-
-
-def test_power_3d_pro():
-    def _fn(params, body, parsed_json, task_data):
-        return parsed_json
-
-    # vietlott_cookie, cookies = get_vietlott_cookie()
-    vietlott_cookie, cookies = None, None
-    fn_fetch = fetch_wrapper(
-        P3DPro.url,
-        dict(Cookie=vietlott_cookie, **requests_config.headers),
-        P3DPro.org_params,
-        cattrs.unstructure(P3DPro.org_body),
-        _fn,
-        cookies,
-    )
-    resp = fn_fetch([{"task_id": "1", "task_data": {"params": {}, "body": {"PageIndex": 1}}}])
-    print(resp)
-
-    assert len(resp) == 1, "some task fail"
+    with pytest.raises(RuntimeError, match="HTTP 403"):
+        _wrapper()(_tasks())
