@@ -82,3 +82,28 @@ def test_portfolio_usage_cap_rejects_insufficient_capacity():
         assert "capacity" in str(exc)
     else:
         raise AssertionError("expected insufficient capacity to fail")
+
+def test_portfolio_excludes_historical_exact_sets():
+    target = date(2026, 1, 13)
+    baseline = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=24,
+        max_number_usage=8,
+    )
+    blocked_ticket = tuple(baseline.predict(target))
+
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=24,
+        max_number_usage=8,
+        excluded_sets={blocked_ticket},
+    )
+    tickets = [tuple(model.predict(target)) for _ in range(30)]
+
+    assert blocked_ticket not in tickets
+    assert len(set(tickets)) == 30
+    assert all(ticket not in {blocked_ticket} for ticket in tickets)
