@@ -8,6 +8,7 @@ more than the configured share of the 30-ticket budget.
 from __future__ import annotations
 
 from datetime import date
+from itertools import combinations
 
 import pandas as pd
 
@@ -31,6 +32,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         candidate_pool_size: int = 24,
         usage_penalty: float = 0.35,
         max_number_usage: int | None = None,
+        excluded_sets: set[tuple[int, ...]] | None = None,
     ) -> None:
         super().__init__(df, time_predict=time_predict, weights=weights)
         if tickets_per_draw <= 0:
@@ -57,6 +59,11 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         self.max_number_usage = (
             int(max_number_usage) if max_number_usage is not None else None
         )
+        self.excluded_sets = {
+            tuple(sorted(int(n) for n in ticket))
+            for ticket in (excluded_sets or set())
+            if len(ticket) == self.number_predict
+        }
         self._portfolio_cache: dict[date, list[list[int]]] = {}
         self._next_index: dict[date, int] = {}
 
@@ -98,9 +105,9 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                 available.remove(choice)
 
             ticket = tuple(sorted(chosen))
-            if ticket in seen:
-                # Deterministic repair: replace the weakest member with the
-                # best unused candidate that preserves the usage cap.
+            if ticket in seen or ticket in self.excluded_sets:
+                # Deterministic repair: try one-number substitutions first so
+                # the score profile remains close to the original selection.
                 repair_candidates = sorted(
                     (n for n in pool if n not in ticket),
                     key=lambda n: (
@@ -108,31 +115,66 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                         n,
                     ),
                 )
-                for replacement in repair_candidates:
-                    if (
-                        self.max_number_usage is not None
-                        and usage[replacement] >= self.max_number_usage
-                    ):
-                        continue
-                    repaired = list(ticket)
-                    weakest_index = min(
-                        range(len(repaired)),
-                        key=lambda i: (
-                            scores[repaired[i]]
-                            - self.usage_penalty * usage[repaired[i]],
-                            -repaired[i],
-                        ),
-                    )
-                    repaired[weakest_index] = replacement
-                    repaired_tuple = tuple(sorted(set(repaired)))
-                    if (
-                        len(repaired_tuple) == self.number_predict
-                        and repaired_tuple not in seen
-                    ):
-                        ticket = repaired_tuple
+                repaired_ok = False
+                for weakest_index in sorted(
+                    range(len(ticket)),
+                    key=lambda i: (
+                        scores[ticket[i]] - self.usage_penalty * usage[ticket[i]],
+                        -ticket[i],
+                    ),
+                ):
+                    for replacement in repair_candidates:
+                        if (
+                            self.max_number_usage is not None
+                            and usage[replacement] >= self.max_number_usage
+                        ):
+                            continue
+                        repaired = list(ticket)
+                        repaired[weakest_index] = replacement
+                        repaired_tuple = tuple(sorted(set(repaired)))
+                        if (
+                            len(repaired_tuple) == self.number_predict
+                            and repaired_tuple not in seen
+                            and repaired_tuple not in self.excluded_sets
+                        ):
+                            ticket = repaired_tuple
+                            repaired_ok = True
+                            break
+                    if repaired_ok:
                         break
 
-            if ticket in seen:
+                if not repaired_ok:
+                    # The normal path should find a one-number repair. The
+                    # exhaustive fallback guarantees exact-set exclusion when
+                    # the candidate pool contains a feasible unseen ticket.
+                    ranked_combos = sorted(
+                        combinations(pool, self.number_predict),
+                        key=lambda combo: (
+                            -sum(
+                                scores[n] - self.usage_penalty * usage[n]
+                                for n in combo
+                            ),
+                            combo,
+                        ),
+                    )
+                    for combo in ranked_combos:
+                        key = tuple(sorted(combo))
+                        if key in seen or key in self.excluded_sets:
+                            continue
+                        if self.max_number_usage is not None and any(
+                            usage[n] >= self.max_number_usage for n in key
+                        ):
+                            continue
+                        ticket = key
+                        repaired_ok = True
+                        break
+
+                if not repaired_ok:
+                    raise RuntimeError(
+                        "failed to construct an allowed portfolio ticket"
+                    )
+
+            if ticket in seen or ticket in self.excluded_sets:
                 raise RuntimeError(
                     f"failed to create distinct portfolio ticket {ticket_idx + 1}"
                 )
