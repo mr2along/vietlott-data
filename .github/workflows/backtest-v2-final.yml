@@ -64,6 +64,24 @@ jobs:
         run: python -c "import sklearn; print('SCIKIT_LEARN_VERSION=' + sklearn.__version__)"
       - name: Run all tests
         run: python -m pytest src/vietlott/tests src/machine_learning/tests -q
+      - name: Smoke test Power 6/55 crawler
+        run: |
+          rm -f data/power655.jsonl
+          vietlott-crawl power_655 --index_from 0 --index_to 1
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          rows = [json.loads(line) for line in Path("data/power655.jsonl").read_text().splitlines() if line.strip()]
+          assert rows, "crawler returned no rows"
+          latest = max(rows, key=lambda row: (row["date"], row["id"]))
+          assert len(latest["result"]) == 7
+          assert latest["id"] == "01399", latest
+          assert latest["date"] == "2026-09-17", latest
+          assert len(set(latest["result"][:6])) == 6
+          assert latest["result"][6] not in latest["result"][:6]
+          print("CRAWLER_SMOKE_OK", latest)
+          PY
+
       - name: Validate exponential decay half-life
         run: |
           rm -f artifacts/backtest_v2/decay_validation.json
