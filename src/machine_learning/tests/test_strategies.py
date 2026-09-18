@@ -223,7 +223,7 @@ def test_all_strategies_predict_valid(factory, name, df):
     _assert_valid_prediction(pred, model)
 
 
-@pytest.mark.parametrize("factory,name", zip(STRATEGY_FACTORIES, STRATEGY_NAMES))
+@pytest.mark.parametrize("factory,name", list(zip(STRATEGY_FACTORIES, STRATEGY_NAMES)))
 def test_all_strategies_backtest_pipeline(factory, name, df):
     """Every strategy must complete backtest + evaluate + revenue without error."""
     model = factory(df)
