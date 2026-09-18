@@ -10,6 +10,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: backtest-v2-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   PYTHONPATH: src
 
@@ -19,6 +23,7 @@ permissions:
 jobs:
   backtest-v2:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Print checkout identity
@@ -28,12 +33,16 @@ jobs:
           git rev-parse HEAD
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pandas numpy polars pytest scikit-learn
+          pip install -e ".[ml]" pytest
+          pip install pandas numpy polars scikit-learn build
+      - name: Compile Python sources
+        run: python -m compileall -q src
+      - name: Build package smoke test
+        run: python -m build --wheel --sdist
       - name: Normalize Power 6/55 data
         run: python -m src.machine_learning.normalize_power655
       - name: Verify normalized benchmark dataset
@@ -45,13 +54,16 @@ jobs:
           rows = [json.loads(x) for x in p.read_text().splitlines() if x.strip()]
           assert len(rows) == 1381, len(rows)
           assert all(len(r["result"]) == 7 for r in rows)
+          dates = [r["date"] for r in rows]
+          assert dates == sorted(dates)
           print(f"BENCHMARK_ROWS={len(rows)}")
           print("ALL_ROWS_HAVE_7_NUMBERS=True")
+          print("BENCHMARK_SORTED=True")
           PY
       - name: Verify ML dependency
         run: python -c "import sklearn; print('SCIKIT_LEARN_VERSION=' + sklearn.__version__)"
-      - name: Run prize, leakage, and strategy tests
-        run: python -m pytest src/machine_learning/tests -q
+      - name: Run all tests
+        run: python -m pytest src/vietlott/tests src/machine_learning/tests -q
       - name: Validate exponential decay half-life
         run: |
           rm -f artifacts/backtest_v2/decay_validation.json
@@ -60,14 +72,14 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          p = Path("artifacts/backtest_v2/decay_validation.json")
-          x = json.loads(p.read_text())
-          required = {"dataset_rows", "train_rows", "validation_rows", "test_rows_reserved", "selection_metric", "random_selection_weight", "candidates", "selected_half_life_days"}
+          x = json.loads(Path("artifacts/backtest_v2/decay_validation.json").read_text())
+          required = {"dataset_rows","train_rows","validation_rows","test_rows_reserved","selection_metric","random_selection_weight","candidates","selected_half_life_days","locked_holdout"}
           assert required <= x.keys()
           assert len(x["candidates"]) == 9
           assert x["random_selection_weight"] == 0.0
           assert x["test_rows_reserved"] > 0
-          assert x["selected_half_life_days"] in [30, 60, 90, 120, 180, 270, 365, 540, 730]
+          assert x["selected_half_life_days"] in [30,60,90,120,180,270,365,540,730]
+          assert x["locked_holdout"]["used_for_selection"] is False
           print("DECAY_VALIDATION_ARTIFACT_OK")
           PY
       - name: Run Backtest V2 benchmark
@@ -90,7 +102,6 @@ jobs:
           test -s artifacts/backtest_v2/backtest_per_draw.json
           test -s artifacts/backtest_v2/strategy_significance.json
           test -s artifacts/backtest_v2/paired_significance.json
-          find artifacts/backtest_v2 -maxdepth 1 -type f -print
       - name: Upload Backtest V2 audit artifacts
         uses: actions/upload-artifact@v4
         with:
