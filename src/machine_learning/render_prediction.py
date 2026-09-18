@@ -481,6 +481,8 @@ for name, model in strategies.items():
             return "# Error\n\nNo data available.\n"
 
         df_pd = df_power655.to_pandas()
+        if "result" in df_pd.columns:
+            df_pd["result"] = df_pd["result"].apply(lambda x: list(x)[:6])
         strategies = self._build_and_run_strategies(df_pd, date_from=date_from, date_to=date_to)
 
         roi_table = self._roi_comparison_table(strategies)
@@ -523,7 +525,7 @@ This prediction summary is for educational and research purposes only. Lottery o
             Optional end date (inclusive) for the backtest period.
         """
         if output_path is None:
-            output_path = Path(__file__).parent / "readme.md"
+            output_path = Path(__file__).parent / "README.md"
 
         try:
             summary_content = self.generate_prediction_summary(date_from=date_from, date_to=date_to)
