@@ -33,6 +33,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         usage_penalty: float = 0.35,
         max_number_usage: int | None = None,
         excluded_sets: set[tuple[int, ...]] | None = None,
+        max_consecutive_run: int | None = None,
     ) -> None:
         super().__init__(df, time_predict=time_predict, weights=weights)
         if tickets_per_draw <= 0:
@@ -64,8 +65,25 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             for ticket in (excluded_sets or set())
             if len(ticket) == self.number_predict
         }
+        if max_consecutive_run is not None and max_consecutive_run < 1:
+            raise ValueError("max_consecutive_run must be >= 1")
+        self.max_consecutive_run = (
+            int(max_consecutive_run) if max_consecutive_run is not None else None
+        )
         self._portfolio_cache: dict[date, list[list[int]]] = {}
         self._next_index: dict[date, int] = {}
+
+    def _valid_shape(self, ticket: tuple[int, ...]) -> bool:
+        if self.max_consecutive_run is None:
+            return True
+        run = best = 1
+        for left, right in zip(ticket, ticket[1:]):
+            if right == left + 1:
+                run += 1
+                best = max(best, run)
+            else:
+                run = 1
+        return best <= self.max_consecutive_run
 
     def _build_portfolio(self, target_date: date) -> list[list[int]]:
         scores = self._scores(target_date)
@@ -105,7 +123,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                 available.remove(choice)
 
             ticket = tuple(sorted(chosen))
-            if ticket in seen or ticket in self.excluded_sets:
+            if ticket in seen or ticket in self.excluded_sets or not self._valid_shape(ticket):
                 # Deterministic repair: try one-number substitutions first so
                 # the score profile remains close to the original selection.
                 repair_candidates = sorted(
@@ -136,6 +154,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                             len(repaired_tuple) == self.number_predict
                             and repaired_tuple not in seen
                             and repaired_tuple not in self.excluded_sets
+                            and self._valid_shape(repaired_tuple)
                         ):
                             ticket = repaired_tuple
                             repaired_ok = True
@@ -159,7 +178,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                     )
                     for combo in ranked_combos:
                         key = tuple(sorted(combo))
-                        if key in seen or key in self.excluded_sets:
+                        if key in seen or key in self.excluded_sets or not self._valid_shape(key):
                             continue
                         if self.max_number_usage is not None and any(
                             usage[n] >= self.max_number_usage for n in key
