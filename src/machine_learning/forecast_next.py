@@ -151,6 +151,7 @@ def main() -> None:
             usage_penalty=0.35,
             max_number_usage=args.max_number_usage,
             excluded_sets=seen_sets,
+            max_consecutive_run=3,
         ),
     }
 
@@ -183,6 +184,7 @@ def main() -> None:
             "main_numbers_only": True,
             "historical_exact_sets": len(seen_sets),
             "unseen_portfolio_exact_exclusion": True,
+            "max_consecutive_run": 3,
             "special_used_as_feature": False,
             "portfolio_tickets": args.tickets,
             "candidate_pool_size": 24,
