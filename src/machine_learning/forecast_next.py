@@ -121,6 +121,10 @@ def main() -> None:
     df = pd.DataFrame(
         [{"date": r["date"], "result": r["result"][:6]} for r in rows]
     )
+    seen_sets = {
+        tuple(sorted(int(x) for x in r["result"][:6]))
+        for r in rows
+    }
 
     models = {
         "Bayesian": BayesianProbabilityStrategy(
@@ -139,6 +143,15 @@ def main() -> None:
             usage_penalty=0.35,
             max_number_usage=args.max_number_usage,
         ),
+        "UnseenPortfolioEnsemble": PortfolioEnsembleStrategy(
+            df,
+            time_predict=1,
+            tickets_per_draw=args.tickets,
+            candidate_pool_size=24,
+            usage_penalty=0.35,
+            max_number_usage=args.max_number_usage,
+            excluded_sets=seen_sets,
+        ),
     }
 
     predictions: dict[str, object] = {}
@@ -148,6 +161,10 @@ def main() -> None:
     portfolio_model = models["PortfolioEnsemble"]
     portfolio = [portfolio_model.predict(target) for _ in range(args.tickets)]
     predictions["PortfolioEnsemble"] = portfolio
+
+    unseen_model = models["UnseenPortfolioEnsemble"]
+    unseen_portfolio = [unseen_model.predict(target) for _ in range(args.tickets)]
+    predictions["UnseenPortfolioEnsemble"] = unseen_portfolio
 
     output = {
         "as_of_draw": {
@@ -161,8 +178,11 @@ def main() -> None:
         "dataset_rows": len(rows),
         "predictions": predictions,
         "portfolio_stats": portfolio_stats(portfolio),
+        "unseen_portfolio_stats": portfolio_stats(unseen_portfolio),
         "method": {
             "main_numbers_only": True,
+            "historical_exact_sets": len(seen_sets),
+            "unseen_portfolio_exact_exclusion": True,
             "special_used_as_feature": False,
             "portfolio_tickets": args.tickets,
             "candidate_pool_size": 24,
