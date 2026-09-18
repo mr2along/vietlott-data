@@ -34,7 +34,7 @@ jobs:
           vietlott-crawl power_655 --index-from 0 --index-to 1
           tail -n 3 data/power655.jsonl
       - name: Generate next-draw forecast
-        run: python -m src.machine_learning.forecast_next --tickets 30
+        run: python -m src.machine_learning.forecast_next --tickets 30 --max-number-usage 8
       - name: Upload forecast artifact
         uses: actions/upload-artifact@v4
         with:
