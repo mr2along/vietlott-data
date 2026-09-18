@@ -43,7 +43,7 @@ def detect_missing_data(ctx, product, limit):
         ((last_id - pl.col("id")) / product_cfg.page_size).alias("index"),
         ((last_id - pl.col("id_next")) / product_cfg.page_size).alias("index_next"),
     )
-    df_missing_process = df_missing.reverse().slice(1, limit)
+    df_missing_process = df_missing.reverse().slice(0, limit)
 
     df_display = df_missing_process.select(["date", "id", "id_next", "diff", "index", "index_next"])
     logger.info("\n" + tabulate(df_display.iter_rows(), headers=df_display.columns, tablefmt="github"))
