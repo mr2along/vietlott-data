@@ -7,7 +7,8 @@ more than the configured share of the 30-ticket budget.
 
 from __future__ import annotations
 
-from datetime import date
+from collections import Counter
+from datetime import date, timedelta
 from itertools import combinations
 
 import pandas as pd
@@ -18,9 +19,11 @@ from .rank_ensemble import RankEnsembleStrategy
 class PortfolioEnsembleStrategy(RankEnsembleStrategy):
     """Generate a score-driven six-number ticket portfolio.
 
-    "max_number_usage" is disabled by default to preserve the historical V2
-    benchmark behavior. Forecasting can enable it to reduce concentration and
-    spread the fixed ticket budget across the candidate pool.
+    ``coverage_rescue_size`` optionally reserves part of the candidate pool
+    for an independent historical-coverage tier instead of allowing the
+    ensemble's zero-score numeric tie-break to decide every slot. This is a
+    diversification guardrail, not evidence that rescued numbers are more
+    likely to be drawn.
     """
 
     def __init__(
@@ -34,6 +37,10 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         max_number_usage: int | None = None,
         excluded_sets: set[tuple[int, ...]] | None = None,
         max_consecutive_run: int | None = None,
+        coverage_rescue_size: int = 0,
+        coverage_recent_draws: int = 20,
+        coverage_long_draws: int = 180,
+        coverage_repeat_weight: float = 0.20,
     ) -> None:
         super().__init__(df, time_predict=time_predict, weights=weights)
         if tickets_per_draw <= 0:
@@ -67,9 +74,20 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         }
         if max_consecutive_run is not None and max_consecutive_run < 1:
             raise ValueError("max_consecutive_run must be >= 1")
+        if coverage_rescue_size < 0 or coverage_rescue_size > candidate_pool_size - self.number_predict:
+            raise ValueError("coverage_rescue_size must leave room for six-number tickets")
+        if coverage_recent_draws < 1 or coverage_long_draws < coverage_recent_draws:
+            raise ValueError("coverage draw windows are invalid")
+        if not 0 <= coverage_repeat_weight <= 1:
+            raise ValueError("coverage_repeat_weight must be between 0 and 1")
         self.max_consecutive_run = (
             int(max_consecutive_run) if max_consecutive_run is not None else None
         )
+        self.coverage_rescue_size = int(coverage_rescue_size)
+        self.coverage_recent_draws = int(coverage_recent_draws)
+        self.coverage_long_draws = int(coverage_long_draws)
+        self.coverage_repeat_weight = float(coverage_repeat_weight)
+        self._candidate_cache: dict[date, tuple[list[int], list[int], list[int]]] = {}
         self._portfolio_cache: dict[date, list[list[int]]] = {}
         self._next_index: dict[date, int] = {}
 
@@ -85,10 +103,80 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                 run = 1
         return best <= self.max_consecutive_run
 
-    def _build_portfolio(self, target_date: date) -> list[list[int]]:
+    def _coverage_rank(self, target_date: date, excluded: set[int]) -> list[int]:
+        history = self.df[self.df["date"] < target_date].sort_values("date")
+        if history.empty:
+            return []
+
+        recent = history.tail(self.coverage_recent_draws)
+        long_window = history.tail(self.coverage_long_draws)
+
+        recent_counts = Counter(
+            int(n)
+            for values in recent["result"].tolist()
+            for n in list(values)[: self.number_predict]
+        )
+        long_counts = Counter(
+            int(n)
+            for values in long_window["result"].tolist()
+            for n in list(values)[: self.number_predict]
+        )
+        latest_numbers = set(
+            int(n) for n in list(history.iloc[-1]["result"])[: self.number_predict]
+        )
+        previous_numbers = set()
+        if len(history) >= 2:
+            previous_numbers = set(
+                int(n)
+                for n in list(history.iloc[-2]["result"])[: self.number_predict]
+            )
+
+        all_numbers = list(range(self.min_val, self.max_val + 1))
+        max_recent = max(recent_counts.values(), default=1)
+        max_long = max(long_counts.values(), default=1)
+
+        def key(n: int) -> tuple[float, int]:
+            recent_norm = recent_counts.get(n, 0) / max_recent
+            long_norm = long_counts.get(n, 0) / max_long
+            repeat = 1.0 if n in latest_numbers else 0.5 if n in previous_numbers else 0.0
+            score = (
+                (1.0 - self.coverage_repeat_weight) * 0.55 * recent_norm
+                + (1.0 - self.coverage_repeat_weight) * 0.45 * long_norm
+                + self.coverage_repeat_weight * repeat
+            )
+            return (-score, n)
+
+        return sorted((n for n in all_numbers if n not in excluded), key=key)
+
+    def _candidate_pool(self, target_date: date) -> tuple[list[int], list[int], list[int]]:
+        if target_date in self._candidate_cache:
+            return self._candidate_cache[target_date]
+
         scores = self._scores(target_date)
         ordered = sorted(scores, key=lambda n: (-scores[n], n))
-        pool = ordered[: self.candidate_pool_size]
+        core_size = self.candidate_pool_size - self.coverage_rescue_size
+        core = ordered[:core_size]
+        excluded = set(core)
+        rescue_ranked = self._coverage_rank(target_date, excluded)
+        rescue = rescue_ranked[: self.coverage_rescue_size]
+        pool = core + rescue
+
+        if len(pool) < self.candidate_pool_size:
+            remaining = [n for n in ordered if n not in pool]
+            pool.extend(remaining[: self.candidate_pool_size - len(pool)])
+        if len(pool) != self.candidate_pool_size:
+            raise RuntimeError("failed to construct candidate pool")
+
+        self._candidate_cache[target_date] = (pool, core, rescue)
+        return pool, core, rescue
+
+    def candidate_pool_details(self, target_date: date) -> dict[str, list[int]]:
+        pool, core, rescue = self._candidate_pool(target_date)
+        return {"pool": list(pool), "core": list(core), "coverage_rescue": list(rescue)}
+
+    def _build_portfolio(self, target_date: date) -> list[list[int]]:
+        scores = self._scores(target_date)
+        pool, _, _ = self._candidate_pool(target_date)
         usage = {n: 0 for n in pool}
         tickets: list[list[int]] = []
         seen: set[tuple[int, ...]] = set()
