@@ -44,6 +44,7 @@ def audit_candidate_coverage(
         tickets_per_draw=30,
         candidate_pool_size=candidate_pool_size,
         coverage_rescue_size=0,
+        ensemble_score_mode=ensemble_score_mode,
     )
     hybrid = PortfolioEnsembleStrategy(
         df,
