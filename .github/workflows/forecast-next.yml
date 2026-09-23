@@ -34,9 +34,9 @@ jobs:
           vietlott-crawl power_655 --index-from 0 --index-to 1
           tail -n 3 data/power655.jsonl
       - name: Generate next-draw forecast
-        run: python -m src.machine_learning.forecast_next --tickets 30 --max-number-usage 8 --candidate-pool-size 24 --coverage-rescue-size 0 --ensemble-score-mode full_rank
+        run: python -m src.machine_learning.forecast_next --tickets 30 --max-number-usage 6 --candidate-pool-size 30 --coverage-rescue-size 0 --ensemble-score-mode full_rank
       - name: Audit candidate-pool coverage
-        run: python -m src.machine_learning.audit_forecast_candidates --last-draws 60 --candidate-pool-size 24 --coverage-rescue-size 8 --ensemble-score-mode full_rank
+        run: python -m src.machine_learning.audit_forecast_candidates --last-draws 60 --candidate-pool-size 30 --coverage-rescue-size 8 --ensemble-score-mode full_rank
       - name: Upload forecast artifact
         uses: actions/upload-artifact@v4
         with:
