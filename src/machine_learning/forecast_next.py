@@ -105,13 +105,13 @@ def main() -> None:
     parser.add_argument(
         "--max-number-usage",
         type=int,
-        default=8,
+        default=6,
         help="Maximum appearances of one candidate number across the portfolio",
     )
     parser.add_argument(
         "--candidate-pool-size",
         type=int,
-        default=24,
+        default=30,
         help="Total candidate numbers available to the portfolio",
     )
     parser.add_argument(
