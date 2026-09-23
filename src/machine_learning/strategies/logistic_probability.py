@@ -32,6 +32,7 @@ class LogisticProbabilityStrategy(PredictModel):
             raise ValueError("min_training_rows must be >= 1")
         self.random_state = int(random_state)
         self._cache: Dict[date, List[int]] = {}
+        self._score_cache: Dict[date, Dict[int, float]] = {}
         self._model: SGDClassifier | None = None
         # Row i is a supervised example whose features use only rows < i.
         # Start at row 1 so the first eligible target can train on every
@@ -117,35 +118,46 @@ class LogisticProbabilityStrategy(PredictModel):
                 self._model.partial_fit(X, y)
             self._trained_until = i + 1
 
-    def predict(self, target_date: date) -> List[int]:
+    def score_numbers(self, target_date: date) -> Dict[int, float]:
         key = pd.Timestamp(target_date).date()
-        if key in self._cache:
-            return list(self._cache[key])
+        if key in self._score_cache:
+            return dict(self._score_cache[key])
 
         target = pd.Timestamp(target_date).normalize()
         if self._last_target is not None and target < self._last_target:
             self._reset_model()
 
         target_index = int(np.searchsorted(self._dates, target.to_datetime64(), side="left"))
+        numbers = range(self.min_val, self.max_val + 1)
         if target_index < self.min_training_rows:
-            result = list(range(self.min_val, self.min_val + self.number_predict))
-            self._cache[key] = result
+            scores = {n: 0.0 for n in numbers}
+            self._score_cache[key] = scores
             self._last_target = target
-            return list(result)
+            return dict(scores)
 
         self._advance_training(target_index)
         if self._model is None:
-            result = list(range(self.min_val, self.min_val + self.number_predict))
-            self._cache[key] = result
+            scores = {n: 0.0 for n in numbers}
+            self._score_cache[key] = scores
             self._last_target = target
-            return list(result)
+            return dict(scores)
 
         probabilities = self._model.predict_proba(self._feature_matrix(target_index))[:, 1]
-        ranking = sorted(
-            zip(range(self.min_val, self.max_val + 1), probabilities),
-            key=lambda item: (-float(item[1]), item[0]),
-        )
-        result = [n for n, _ in ranking[: self.number_predict]]
-        self._cache[key] = result
+        scores = {
+            number: float(probability)
+            for number, probability in zip(numbers, probabilities)
+        }
+        self._score_cache[key] = scores
         self._last_target = target
+        return dict(scores)
+
+    def predict(self, target_date: date) -> List[int]:
+        key = pd.Timestamp(target_date).date()
+        if key in self._cache:
+            return list(self._cache[key])
+
+        scores = self.score_numbers(target_date)
+        ranking = sorted(scores, key=lambda n: (-scores[n], n))
+        result = ranking[: self.number_predict]
+        self._cache[key] = result
         return list(result)
