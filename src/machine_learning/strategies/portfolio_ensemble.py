@@ -220,41 +220,35 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                     if self.max_number_usage is None
                     or usage[n] < self.max_number_usage
                 ]
-                if self.max_number_usage is not None:
-                    feasible = []
-                    capacity_before = sum(
-                        self.max_number_usage - usage[n] for n in pool
-                    )
-                    for candidate in candidates:
-                        # Every chosen number consumes one unit of its usage
-                        # budget. Chosen numbers remain available on later
-                        # tickets, so their unused capacity must not be removed
-                        # from the future-capacity calculation.
-                        capacity_after_choice = capacity_before - len(chosen) - 1
-                        if capacity_after_choice < slots_remaining_after_choice:
-                            continue
-                        available_after = [n for n in available if n != candidate]
-                        remaining_under_cap = sum(
-                            usage[n] < self.max_number_usage for n in available_after
-                        )
-                        if remaining_under_cap < slots_remaining_after_choice:
-                            continue
-                        feasible.append(candidate)
-                    candidates = feasible
-
-                if not candidates:
+                required = self.number_predict - slot
+                if len(candidates) < required:
                     raise RuntimeError(
                         "failed to preserve portfolio capacity while selecting a ticket"
                     )
 
-                ranked = sorted(
-                    candidates,
-                    key=lambda n: (
-                        -(scores[n] - self.usage_penalty * usage[n]),
-                        (n + ticket_idx + slot) % self.candidate_pool_size,
-                        n,
-                    ),
-                )
+                if self.max_number_usage is not None:
+                    # Balance usage first, then use the ensemble score. This
+                    # preserves the global usage cap by construction while
+                    # still preferring stronger candidates among equally used
+                    # numbers.
+                    ranked = sorted(
+                        candidates,
+                        key=lambda n: (
+                            usage[n],
+                            -(scores[n] - self.usage_penalty * usage[n]),
+                            (n + ticket_idx + slot) % self.candidate_pool_size,
+                            n,
+                        ),
+                    )
+                else:
+                    ranked = sorted(
+                        candidates,
+                        key=lambda n: (
+                            -(scores[n] - self.usage_penalty * usage[n]),
+                            (n + ticket_idx + slot) % self.candidate_pool_size,
+                            n,
+                        ),
+                    )
                 choice = ranked[0]
                 chosen.append(choice)
                 available.remove(choice)
