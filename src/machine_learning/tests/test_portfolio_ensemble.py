@@ -153,3 +153,47 @@ def test_candidate_pool_reserves_coverage_tier():
     assert set(details["coverage_rescue"]).issubset(set(range(17, 56)))
     assert len(details["pool"]) == 18
     assert set(details["core"]).isdisjoint(details["coverage_rescue"])
+
+def test_full_rank_ensemble_keeps_signal_outside_component_top_six():
+    class StubModel:
+        def score_numbers(self, target_date):
+            return {number: float(56 - number) for number in range(1, 56)}
+
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0},
+        tickets_per_draw=30,
+        candidate_pool_size=24,
+        ensemble_score_mode="full_rank",
+    )
+    model._components = lambda: [("Stub", 1.0, StubModel())]
+
+    scores = model._scores(date(2026, 1, 13))
+    details = model.candidate_pool_details(date(2026, 1, 13))
+
+    assert len(scores) == 55
+    assert scores[24] > scores[25]
+    assert details["core"] == list(range(1, 25))
+    assert details["coverage_rescue"] == []
+
+
+def test_full_rank_mode_rejects_missing_score_api():
+    class LegacyOnlyModel:
+        def predict(self, target_date):
+            return [1, 2, 3, 4, 5, 6]
+
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0},
+        tickets_per_draw=30,
+        candidate_pool_size=24,
+        ensemble_score_mode="full_rank",
+    )
+    model._components = lambda: [("LegacyOnly", 1.0, LegacyOnlyModel())]
+
+    try:
+        model._scores(date(2026, 1, 13))
+    except RuntimeError as exc:
+        assert "full number scores" in str(exc)
+    else:
+        raise AssertionError("expected full-score API validation to fail")
