@@ -108,12 +108,28 @@ def main() -> None:
         default=8,
         help="Maximum appearances of one candidate number across the portfolio",
     )
+    parser.add_argument(
+        "--candidate-pool-size",
+        type=int,
+        default=24,
+        help="Total candidate numbers available to the portfolio",
+    )
+    parser.add_argument(
+        "--coverage-rescue-size",
+        type=int,
+        default=8,
+        help="Numbers reserved from historical coverage/repeat ranking outside the core score pool",
+    )
     args = parser.parse_args()
 
     if args.tickets < 1:
         raise ValueError("--tickets must be >= 1")
     if args.max_number_usage < 1:
         raise ValueError("--max-number-usage must be >= 1")
+    if args.candidate_pool_size < 6:
+        raise ValueError("--candidate-pool-size must be >= 6")
+    if not 0 <= args.coverage_rescue_size <= args.candidate_pool_size - 6:
+        raise ValueError("--coverage-rescue-size must leave room for six-number tickets")
 
     rows = load_complete_rows(Path(args.data))
     last = rows[-1]
@@ -139,19 +155,21 @@ def main() -> None:
             df,
             time_predict=1,
             tickets_per_draw=args.tickets,
-            candidate_pool_size=24,
+            candidate_pool_size=args.candidate_pool_size,
             usage_penalty=0.35,
             max_number_usage=args.max_number_usage,
+            coverage_rescue_size=args.coverage_rescue_size,
         ),
         "UnseenPortfolioEnsemble": PortfolioEnsembleStrategy(
             df,
             time_predict=1,
             tickets_per_draw=args.tickets,
-            candidate_pool_size=24,
+            candidate_pool_size=args.candidate_pool_size,
             usage_penalty=0.35,
             max_number_usage=args.max_number_usage,
             excluded_sets=seen_sets,
             max_consecutive_run=3,
+            coverage_rescue_size=args.coverage_rescue_size,
         ),
     }
 
@@ -161,10 +179,12 @@ def main() -> None:
 
     portfolio_model = models["PortfolioEnsemble"]
     portfolio = [portfolio_model.predict(target) for _ in range(args.tickets)]
+    portfolio_candidate_details = portfolio_model.candidate_pool_details(target)
     predictions["PortfolioEnsemble"] = portfolio
 
     unseen_model = models["UnseenPortfolioEnsemble"]
     unseen_portfolio = [unseen_model.predict(target) for _ in range(args.tickets)]
+    unseen_candidate_details = unseen_model.candidate_pool_details(target)
     predictions["UnseenPortfolioEnsemble"] = unseen_portfolio
 
     output = {
@@ -179,7 +199,9 @@ def main() -> None:
         "dataset_rows": len(rows),
         "predictions": predictions,
         "portfolio_stats": portfolio_stats(portfolio),
+        "portfolio_candidate_pool": portfolio_candidate_details,
         "unseen_portfolio_stats": portfolio_stats(unseen_portfolio),
+        "unseen_candidate_pool": unseen_candidate_details,
         "method": {
             "main_numbers_only": True,
             "historical_exact_sets": len(seen_sets),
@@ -187,7 +209,8 @@ def main() -> None:
             "max_consecutive_run": 3,
             "special_used_as_feature": False,
             "portfolio_tickets": args.tickets,
-            "candidate_pool_size": 24,
+            "candidate_pool_size": args.candidate_pool_size,
+            "coverage_rescue_size": args.coverage_rescue_size,
             "max_number_usage": args.max_number_usage,
             "rank_ensemble_weights": {
                 "Bayesian": 0.35,
