@@ -222,14 +222,24 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                 ]
                 if self.max_number_usage is not None:
                     feasible = []
+                    capacity_before = sum(
+                        self.max_number_usage - usage[n] for n in pool
+                    )
                     for candidate in candidates:
-                        remaining_capacity = sum(
-                            self.max_number_usage - usage[n]
-                            for n in pool
-                            if n != candidate and n not in chosen
+                        # Every chosen number consumes one unit of its usage
+                        # budget. Chosen numbers remain available on later
+                        # tickets, so their unused capacity must not be removed
+                        # from the future-capacity calculation.
+                        capacity_after_choice = capacity_before - len(chosen) - 1
+                        if capacity_after_choice < slots_remaining_after_choice:
+                            continue
+                        available_after = [n for n in available if n != candidate]
+                        remaining_under_cap = sum(
+                            usage[n] < self.max_number_usage for n in available_after
                         )
-                        if remaining_capacity >= slots_remaining_after_choice:
-                            feasible.append(candidate)
+                        if remaining_under_cap < slots_remaining_after_choice:
+                            continue
+                        feasible.append(candidate)
                     candidates = feasible
 
                 if not candidates:
