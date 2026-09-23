@@ -130,3 +130,26 @@ def test_portfolio_filters_long_consecutive_runs():
     assert max(max_run(ticket) for ticket in tickets) <= 3
     assert model._valid_shape((1, 2, 3, 4, 9, 12)) is False
     assert model._valid_shape((1, 2, 3, 8, 9, 12)) is True
+
+def test_candidate_pool_reserves_coverage_tier():
+    target = date(2026, 1, 13)
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=18,
+        coverage_rescue_size=2,
+    )
+
+    forced_scores = {number: 0.0 for number in range(1, 56)}
+    for number in range(1, 17):
+        forced_scores[number] = float(100 - number)
+    model._scores = lambda _: forced_scores
+
+    details = model.candidate_pool_details(target)
+
+    assert details["core"] == list(range(1, 17))
+    assert len(details["coverage_rescue"]) == 2
+    assert set(details["coverage_rescue"]).issubset(set(range(17, 56)))
+    assert len(details["pool"]) == 18
+    assert set(details["core"]).isdisjoint(details["coverage_rescue"])
