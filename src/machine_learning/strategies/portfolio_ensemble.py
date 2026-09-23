@@ -41,6 +41,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         coverage_recent_draws: int = 20,
         coverage_long_draws: int = 180,
         coverage_repeat_weight: float = 0.20,
+        ensemble_score_mode: str = "top6",
     ) -> None:
         super().__init__(df, time_predict=time_predict, weights=weights)
         if tickets_per_draw <= 0:
@@ -87,9 +88,34 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         self.coverage_recent_draws = int(coverage_recent_draws)
         self.coverage_long_draws = int(coverage_long_draws)
         self.coverage_repeat_weight = float(coverage_repeat_weight)
+        if ensemble_score_mode not in {"top6", "full_rank"}:
+            raise ValueError("ensemble_score_mode must be 'top6' or 'full_rank'")
+        self.ensemble_score_mode = ensemble_score_mode
         self._candidate_cache: dict[date, tuple[list[int], list[int], list[int]]] = {}
         self._portfolio_cache: dict[date, list[list[int]]] = {}
         self._next_index: dict[date, int] = {}
+
+    def _scores(self, target_date: date) -> dict[int, float]:
+        if self.ensemble_score_mode == "top6":
+            return super()._scores(target_date)
+
+        scores = {n: 0.0 for n in range(self.min_val, self.max_val + 1)}
+        total_numbers = self.max_val - self.min_val + 1
+        for _, weight, model in self._components():
+            if weight <= 0:
+                continue
+            if not hasattr(model, "score_numbers"):
+                raise RuntimeError(
+                    f"{model.__class__.__name__} does not expose full number scores"
+                )
+            raw_scores = model.score_numbers(target_date)
+            ranked = sorted(
+                range(self.min_val, self.max_val + 1),
+                key=lambda n: (-float(raw_scores.get(n, 0.0)), n),
+            )
+            for rank, number in enumerate(ranked):
+                scores[number] += float(weight) * (total_numbers - rank)
+        return scores
 
     def _valid_shape(self, ticket: tuple[int, ...]) -> bool:
         if self.max_consecutive_run is None:
