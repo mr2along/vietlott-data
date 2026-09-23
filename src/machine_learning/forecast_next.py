@@ -117,8 +117,14 @@ def main() -> None:
     parser.add_argument(
         "--coverage-rescue-size",
         type=int,
-        default=8,
-        help="Numbers reserved from historical coverage/repeat ranking outside the core score pool",
+        default=0,
+        help="Optional numbers reserved from historical coverage/repeat ranking outside the core score pool",
+    )
+    parser.add_argument(
+        "--ensemble-score-mode",
+        choices=("top6", "full_rank"),
+        default="full_rank",
+        help="Ensemble scoring: legacy top-six Borda or full-number ranking",
     )
     args = parser.parse_args()
 
@@ -159,6 +165,7 @@ def main() -> None:
             usage_penalty=0.35,
             max_number_usage=args.max_number_usage,
             coverage_rescue_size=args.coverage_rescue_size,
+            ensemble_score_mode=args.ensemble_score_mode,
         ),
         "UnseenPortfolioEnsemble": PortfolioEnsembleStrategy(
             df,
@@ -170,6 +177,7 @@ def main() -> None:
             excluded_sets=seen_sets,
             max_consecutive_run=3,
             coverage_rescue_size=args.coverage_rescue_size,
+            ensemble_score_mode=args.ensemble_score_mode,
         ),
     }
 
@@ -211,6 +219,7 @@ def main() -> None:
             "portfolio_tickets": args.tickets,
             "candidate_pool_size": args.candidate_pool_size,
             "coverage_rescue_size": args.coverage_rescue_size,
+            "ensemble_score_mode": args.ensemble_score_mode,
             "max_number_usage": args.max_number_usage,
             "rank_ensemble_weights": {
                 "Bayesian": 0.35,
