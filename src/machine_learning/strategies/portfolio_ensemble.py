@@ -211,19 +211,32 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             available = list(pool)
             chosen: list[int] = []
             for slot in range(self.number_predict):
-                under_cap = [
+                slots_remaining_after_choice = (
+                    self.tickets_per_draw - ticket_idx
+                ) * self.number_predict - slot - 1
+                candidates = [
                     n
                     for n in available
                     if self.max_number_usage is None
                     or usage[n] < self.max_number_usage
                 ]
-                # Defensive fallback keeps the ticket valid if intermediate
-                # constraints leave fewer than six under-cap candidates.
-                candidates = (
-                    under_cap
-                    if len(under_cap) >= self.number_predict - slot
-                    else available
-                )
+                if self.max_number_usage is not None:
+                    feasible = []
+                    for candidate in candidates:
+                        remaining_capacity = sum(
+                            self.max_number_usage - usage[n]
+                            for n in pool
+                            if n != candidate and n not in chosen
+                        )
+                        if remaining_capacity >= slots_remaining_after_choice:
+                            feasible.append(candidate)
+                    candidates = feasible
+
+                if not candidates:
+                    raise RuntimeError(
+                        "failed to preserve portfolio capacity while selecting a ticket"
+                    )
+
                 ranked = sorted(
                     candidates,
                     key=lambda n: (
