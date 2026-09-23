@@ -60,6 +60,7 @@ def audit_candidate_coverage(
     hybrid_full = 0
     rescued_hits = 0
     total_numbers = 6 * len(targets)
+    per_draw: list[dict[str, object]] = []
 
     for row in targets:
         target_date = row["date"]
@@ -77,7 +78,18 @@ def audit_candidate_coverage(
         hybrid_hits += hybrid_hit
         baseline_full += baseline_hit == 6
         hybrid_full += hybrid_hit == 6
-        rescued_hits += len(actual & rescue)
+        draw_rescued = sorted(actual & rescue)
+        rescued_hits += len(draw_rescued)
+        per_draw.append(
+            {
+                "id": row["id"],
+                "date": row["date"].isoformat(),
+                "actual_main": sorted(actual),
+                "baseline_matches": baseline_hit,
+                "hybrid_matches": hybrid_hit,
+                "rescued_actual_numbers": draw_rescued,
+            }
+        )
 
     return {
         "target_draws": len(targets),
@@ -99,6 +111,7 @@ def audit_candidate_coverage(
             "all_six_rate": hybrid_full / len(targets),
             "rescued_actual_numbers": rescued_hits,
         },
+        "per_draw": per_draw,
         "gain": {
             "matched_numbers": hybrid_hits - baseline_hits,
             "coverage_rate": (hybrid_hits - baseline_hits) / total_numbers,
