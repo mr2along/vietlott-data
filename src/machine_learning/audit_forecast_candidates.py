@@ -20,7 +20,8 @@ def audit_candidate_coverage(
     rows: list[dict],
     last_draws: int = 60,
     candidate_pool_size: int = 24,
-    coverage_rescue_size: int = 8,
+    coverage_rescue_size: int = 0,
+    ensemble_score_mode: str = "full_rank",
 ) -> dict[str, object]:
     if last_draws < 1:
         raise ValueError("last_draws must be >= 1")
@@ -49,6 +50,7 @@ def audit_candidate_coverage(
         tickets_per_draw=30,
         candidate_pool_size=candidate_pool_size,
         coverage_rescue_size=coverage_rescue_size,
+        ensemble_score_mode=ensemble_score_mode,
     )
 
     baseline_hits = 0
@@ -82,6 +84,7 @@ def audit_candidate_coverage(
         "target_last_id": targets[-1]["id"],
         "candidate_pool_size": candidate_pool_size,
         "coverage_rescue_size": coverage_rescue_size,
+        "ensemble_score_mode": ensemble_score_mode,
         "baseline_score_only": {
             "matched_numbers": baseline_hits,
             "coverage_rate": baseline_hits / total_numbers,
@@ -112,7 +115,8 @@ def main() -> None:
     parser.add_argument("--data", default="data/power655.jsonl")
     parser.add_argument("--last-draws", type=int, default=60)
     parser.add_argument("--candidate-pool-size", type=int, default=24)
-    parser.add_argument("--coverage-rescue-size", type=int, default=8)
+    parser.add_argument("--coverage-rescue-size", type=int, default=0)
+    parser.add_argument("--ensemble-score-mode", choices=("top6", "full_rank"), default="full_rank")
     args = parser.parse_args()
 
     rows = load_complete_rows(Path(args.data))
@@ -121,6 +125,7 @@ def main() -> None:
         last_draws=args.last_draws,
         candidate_pool_size=args.candidate_pool_size,
         coverage_rescue_size=args.coverage_rescue_size,
+        ensemble_score_mode=args.ensemble_score_mode,
     )
 
     output = Path("artifacts/audit/forecast_candidate_coverage.json")
