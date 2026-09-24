@@ -349,6 +349,9 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
 
         def feasible_candidates(chosen: list[int], ticket_idx: int) -> list[int]:
             candidates = []
+            remaining_in_ticket = self.number_predict - len(chosen) - 1
+            future_tickets = self.tickets_per_draw - ticket_idx - 1
+
             for number in pool:
                 if number in chosen:
                     continue
@@ -357,9 +360,32 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                     and exposure[number] >= self.max_number_usage
                 ):
                     continue
+
                 trial = tuple(sorted(chosen + [number]))
                 if len(trial) == self.number_predict and not self._valid_shape(trial):
                     continue
+
+                if self.max_number_usage is not None:
+                    # Reserve enough per-number capacity to finish the current
+                    # ticket and all future tickets. Without this guard a
+                    # score-greedy pass can consume scarce slots too early and
+                    # dead-end even when the global capacity is sufficient.
+                    remaining_capacity = sum(
+                        max(0, self.max_number_usage - exposure[item] - int(item in trial))
+                        for item in pool
+                    )
+                    if remaining_capacity < remaining_in_ticket + future_tickets * self.number_predict:
+                        continue
+
+                    immediate_candidates = sum(
+                        1
+                        for item in pool
+                        if item not in trial
+                        and exposure[item] < self.max_number_usage
+                    )
+                    if immediate_candidates < remaining_in_ticket:
+                        continue
+
                 candidates.append(number)
             return candidates
 
