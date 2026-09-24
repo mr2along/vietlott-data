@@ -269,7 +269,7 @@ def main() -> None:
         },
         "target_draw_date": target.isoformat(),
         "target_draw_weekday": target.strftime("%A"),
-        "target_draw_id": f"{int(last["id"]) + 1:05d}",
+        "target_draw_id": f"{int(last['id']) + 1:05d}",
         "forecast_generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "dataset_rows": len(rows),
         "predictions": predictions,
