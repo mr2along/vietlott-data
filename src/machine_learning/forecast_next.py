@@ -176,6 +176,12 @@ def main() -> None:
         default=2,
         help="Soft portfolio diversity ceiling for repeated number pairs",
     )
+    parser.add_argument(
+        "--consensus-discount",
+        type=float,
+        default=0.25,
+        help="Discount repeated component-model evidence so consensus has diminishing returns",
+    )
     args = parser.parse_args()
 
     if args.tickets < 1:
@@ -188,6 +194,8 @@ def main() -> None:
         raise ValueError("--coverage-rescue-size must leave room for six-number tickets")
     if args.max_pair_reuse < 1:
         raise ValueError("--max-pair-reuse must be >= 1")
+    if not 0.0 <= args.consensus_discount <= 1.0:
+        raise ValueError("--consensus-discount must be between 0 and 1")
 
     rows = load_complete_rows(Path(args.data))
     root = Path.cwd()
@@ -214,6 +222,7 @@ def main() -> None:
             df,
             time_predict=1,
             decay_half_life_days=decay_half_life_days,
+            consensus_discount=args.consensus_discount,
         ),
         "PortfolioEnsemble": PortfolioEnsembleStrategy(
             df,
@@ -228,6 +237,7 @@ def main() -> None:
             pair_reuse_penalty=0.75,
             max_pair_reuse=args.max_pair_reuse,
             decay_half_life_days=decay_half_life_days,
+            consensus_discount=args.consensus_discount,
         ),
         "UnseenPortfolioEnsemble": PortfolioEnsembleStrategy(
             df,
@@ -243,6 +253,7 @@ def main() -> None:
             exposure_power=1.35,
             pair_reuse_penalty=0.75,
             decay_half_life_days=decay_half_life_days,
+            consensus_discount=args.consensus_discount,
         ),
     }
 
@@ -290,6 +301,7 @@ def main() -> None:
             "ensemble_score_mode": args.ensemble_score_mode,
             "max_number_usage": args.max_number_usage,
             "max_pair_reuse": args.max_pair_reuse,
+            "consensus_discount": args.consensus_discount,
             "rank_ensemble_weights": {
                 "Bayesian": 0.35,
                 "ExponentialDecay": 0.35,
