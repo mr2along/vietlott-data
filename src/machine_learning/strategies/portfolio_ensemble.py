@@ -43,8 +43,14 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         ensemble_score_mode: str = "top6",
         exposure_power: float = 1.35,
         pair_reuse_penalty: float = 0.75,
+        decay_half_life_days: int = 730,
     ) -> None:
-        super().__init__(df, time_predict=time_predict, weights=weights)
+        super().__init__(
+            df,
+            time_predict=time_predict,
+            weights=weights,
+            decay_half_life_days=decay_half_life_days,
+        )
         if tickets_per_draw <= 0:
             raise ValueError("tickets_per_draw must be > 0")
         if candidate_pool_size < self.number_predict:
