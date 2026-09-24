@@ -386,6 +386,20 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                     if immediate_candidates < remaining_in_ticket:
                         continue
 
+                    if future_tickets > 0:
+                        available_for_next_ticket = sum(
+                            (
+                                exposure[item] + int(item in trial)
+                            ) < self.max_number_usage
+                            for item in pool
+                        )
+                        # Keep at least one full ticket of distinct uncapped
+                        # candidates available for every future draw. This
+                        # prevents greedy scoring from consuming the same
+                        # small subset up to the hard cap too early.
+                        if available_for_next_ticket < self.number_predict:
+                            continue
+
                 candidates.append(number)
             return candidates
 
