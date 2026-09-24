@@ -89,4 +89,4 @@ def test_rank_ensemble_discounts_repeated_consensus_evidence():
     linear_54 = 0.4 * 5 + 0.3 * 6 + 0.3 * 6
     assert scores[54] < linear_54
     assert scores[54] == 2.9
-    assert scores[55] == 2.4
+    assert round(scores[55], 10) == 2.4
