@@ -226,10 +226,11 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         # Reservoir candidates are selected only for the remaining satellite slots.
         rescue_ranked = self._coverage_rank(target_date, core_set)
         rescue: list[int] = []
-        for number in rescue_ranked:
-            rescue.append(number)
-            if len(rescue) >= self.coverage_rescue_size:
-                break
+        if self.coverage_rescue_size > 0:
+            for number in rescue_ranked:
+                rescue.append(number)
+                if len(rescue) >= self.coverage_rescue_size:
+                    break
 
         if len(rescue) < self.coverage_rescue_size:
             for number in ordered:
