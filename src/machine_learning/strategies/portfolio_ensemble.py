@@ -656,6 +656,129 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         if self.max_number_usage is not None:
             assert max(exposure.values(), default=0) <= self.max_number_usage
 
+        # Repair any pair-cap violations introduced by the final fallback.
+        # A pair limit is a portfolio-diversity constraint, so repair is done
+        # after ticket generation while preserving ticket validity, exclusions,
+        # and number-cap constraints.
+        pair_cap = self.max_pair_reuse
+        if pair_cap is not None:
+            for _pass in range(len(tickets) * 3):
+                pair_usage = Counter(
+                    pair
+                    for ticket in tickets
+                    for pair in combinations(tuple(ticket), 2)
+                )
+                violating = sorted(
+                    (pair, count)
+                    for pair, count in pair_usage.items()
+                    if count > pair_cap
+                )
+                if not violating:
+                    break
+
+                repaired_any = False
+                seen_current = {tuple(ticket) for ticket in tickets}
+                for over_pair, _count in violating:
+                    for ticket_index, ticket_list in enumerate(tickets):
+                        ticket = tuple(sorted(ticket_list))
+                        if not set(over_pair).issubset(ticket):
+                            continue
+
+                        # Prefer replacing the weaker endpoint, then fall back
+                        # to either endpoint if the first choice is infeasible.
+                        endpoints = sorted(
+                            over_pair,
+                            key=lambda n: (
+                                normalized.get(n, 0.0),
+                                -exposure.get(n, 0),
+                                n,
+                            ),
+                        )
+                        replacements = sorted(
+                            (n for n in pool if n not in ticket),
+                            key=lambda n: (
+                                -normalized.get(n, 0.0),
+                                -(
+                                    target_exposure[n] - exposure.get(n, 0)
+                                    if target_exposure.get(n, 0)
+                                    else 0.0
+                                ),
+                                n,
+                            ),
+                        )
+
+                        for old_number in endpoints:
+                            for replacement in replacements:
+                                if (
+                                    self.max_number_usage is not None
+                                    and exposure.get(replacement, 0)
+                                    >= self.max_number_usage
+                                ):
+                                    continue
+
+                                candidate_values = [
+                                    replacement if n == old_number else n
+                                    for n in ticket
+                                ]
+                                if len(set(candidate_values)) != self.number_predict:
+                                    continue
+                                candidate = tuple(sorted(candidate_values))
+                                if (
+                                    candidate in seen_current
+                                    and candidate != ticket
+                                ):
+                                    continue
+                                if candidate in self.excluded_sets:
+                                    continue
+                                if not self._valid_shape(candidate):
+                                    continue
+
+                                old_pairs = list(combinations(ticket, 2))
+                                new_pairs = list(combinations(candidate, 2))
+                                local_removed = Counter(old_pairs)
+                                local_added = Counter(new_pairs)
+                                violates = False
+                                for pair, added in local_added.items():
+                                    resulting = (
+                                        pair_usage.get(pair, 0)
+                                        - local_removed.get(pair, 0)
+                                        + added
+                                    )
+                                    if resulting > pair_cap:
+                                        violates = True
+                                        break
+                                if violates:
+                                    continue
+
+                                # Apply the replacement atomically.
+                                for pair in old_pairs:
+                                    pair_usage[pair] -= 1
+                                    if pair_usage[pair] <= 0:
+                                        del pair_usage[pair]
+                                for pair in new_pairs:
+                                    pair_usage[pair] += 1
+
+                                exposure[old_number] -= 1
+                                exposure[replacement] = exposure.get(replacement, 0) + 1
+                                tickets[ticket_index] = list(candidate)
+                                seen_current.discard(ticket)
+                                seen_current.add(candidate)
+                                repaired_any = True
+                                break
+                            if repaired_any:
+                                break
+                        if repaired_any:
+                            break
+                    if repaired_any:
+                        break
+
+                if not repaired_any:
+                    raise RuntimeError(
+                        "unable to repair portfolio repeated-pair violations"
+                    )
+            else:
+                raise RuntimeError("pair-reuse repair exceeded iteration limit")
+
         return tickets
 
     def predict(self, target_date: date) -> list[int]:
