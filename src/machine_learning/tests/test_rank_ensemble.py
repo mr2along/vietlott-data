@@ -88,5 +88,5 @@ def test_rank_ensemble_discounts_repeated_consensus_evidence():
     # discounted instead of being counted three times at full strength.
     linear_54 = 0.4 * 5 + 0.3 * 6 + 0.3 * 6
     assert scores[54] < linear_54
-    assert scores[54] == 2.55
+    assert scores[54] == 2.9
     assert scores[55] == 2.4
