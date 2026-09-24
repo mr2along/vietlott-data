@@ -141,7 +141,7 @@ class BaseProduct:
 
         current_data_count = 0
         if self.product_config.raw_path.exists():
-            current_data = pl.read_ndjson(self.product_config.raw_path)
+            current_data = pl.read_ndjson(self.product_config.raw_path, infer_schema_length=None)
             current_data = current_data.with_columns(
                 pl.col("id").cast(pl.Utf8), pl.col("date").cast(pl.Utf8)
             )
