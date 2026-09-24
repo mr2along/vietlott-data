@@ -104,6 +104,9 @@ def main() -> None:
     valid.sort(key=_sort_key)
     incomplete.sort(key=_sort_key)
 
+    all_ids = sorted(int(x) for x in ids)
+    id_gaps = [f"{ident:05d}" for ident in range(all_ids[0], all_ids[-1] + 1) if ident not in set(all_ids)] if all_ids else []
+
     benchmark_text = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in valid)
     incomplete_text = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in incomplete)
     (out / "power655_benchmark.jsonl").write_text(benchmark_text, encoding="utf-8")
@@ -117,6 +120,7 @@ def main() -> None:
         "quarantined_ids": [r["id"] for r in incomplete],
         "validation_errors": errors,
         "source_ordering_anomalies": ordering_anomalies,
+        "id_continuity_gaps": id_gaps,
         "benchmark_sorted": True,
         "main_numbers_only_for_prediction": True,
         "special_number_reserved_for_prize_evaluation": True,
@@ -127,6 +131,12 @@ def main() -> None:
 
     if errors:
         raise SystemExit("Power 6/55 normalization gate failed: unexpected data validation errors")
+    if id_gaps:
+        preview = ", ".join(id_gaps[:12])
+        suffix = " ..." if len(id_gaps) > 12 else ""
+        raise SystemExit(
+            f"Power 6/55 normalization gate failed: {len(id_gaps)} missing draw IDs: {preview}{suffix}"
+        )
     if len(valid) < MIN_BENCHMARK_ROWS:
         raise SystemExit(
             f"Power 6/55 normalization gate failed: benchmark has only {len(valid)} rows; "
