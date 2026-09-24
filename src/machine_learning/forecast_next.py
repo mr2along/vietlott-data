@@ -77,6 +77,22 @@ def load_complete_rows(path: Path) -> list[dict]:
     return rows
 
 
+def load_validated_decay_half_life(root: Path) -> int:
+    """Read the validation-selected decay horizon, falling back safely."""
+    path = root / "artifacts" / "backtest_v2" / "decay_validation.json"
+    if not path.exists():
+        return 730
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        selected = int(payload["selected_half_life_days"])
+        if selected in {30, 60, 90, 120, 180, 270, 365, 540, 730}:
+            if payload.get("locked_holdout", {}).get("used_for_selection") is False:
+                return selected
+    except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError):
+        pass
+    return 730
+
+
 def portfolio_stats(portfolio: list[list[int]]) -> dict[str, object]:
     usage = Counter(n for ticket in portfolio for n in ticket)
     overlaps: list[int] = []
@@ -150,6 +166,8 @@ def main() -> None:
         raise ValueError("--coverage-rescue-size must leave room for six-number tickets")
 
     rows = load_complete_rows(Path(args.data))
+    root = Path.cwd()
+    decay_half_life_days = load_validated_decay_half_life(root)
     last = rows[-1]
     target = next_draw_date(last["date"])
     df = pd.DataFrame(
@@ -165,10 +183,14 @@ def main() -> None:
             df, time_predict=1, prior_strength=20.0, half_life_days=180.0
         ),
         "ExponentialDecay": ExponentialDecayStrategy(
-            df, time_predict=1, half_life_days=730, hot=True, selection_weight=1.0
+            df, time_predict=1, half_life_days=decay_half_life_days, hot=True, selection_weight=1.0
         ),
         "LogisticProbability": LogisticProbabilityStrategy(df, time_predict=1),
-        "RankEnsemble": RankEnsembleStrategy(df, time_predict=1),
+        "RankEnsemble": RankEnsembleStrategy(
+            df,
+            time_predict=1,
+            decay_half_life_days=decay_half_life_days,
+        ),
         "PortfolioEnsemble": PortfolioEnsembleStrategy(
             df,
             time_predict=1,
@@ -180,6 +202,7 @@ def main() -> None:
             ensemble_score_mode=args.ensemble_score_mode,
             exposure_power=1.35,
             pair_reuse_penalty=0.75,
+            decay_half_life_days=decay_half_life_days,
         ),
         "UnseenPortfolioEnsemble": PortfolioEnsembleStrategy(
             df,
@@ -226,6 +249,7 @@ def main() -> None:
         "unseen_candidate_pool": unseen_candidate_details,
         "method": {
             "main_numbers_only": True,
+            "validated_decay_half_life_days": decay_half_life_days,
             "historical_exact_sets": len(seen_sets),
             "unseen_portfolio_exact_exclusion": True,
             "max_consecutive_run": 3,
