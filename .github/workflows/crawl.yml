@@ -31,6 +31,9 @@ jobs:
       - name: Crawl Power 6/55
         run: |
           vietlott-crawl power_655 --index-from 0 --index-to 1
+      - name: Backfill missing Power 6/55 draws
+        run: |
+          vietlott-missing power_655 --limit 20
       - name: Validate Power 6/55 freshness
         run: |
           python - <<'PY'
