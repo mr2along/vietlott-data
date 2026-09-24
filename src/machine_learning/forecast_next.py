@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from .normalize_power655 import EXPECTED_HISTORICAL_INCOMPLETE_IDS
+
 from .strategies import (
     BayesianProbabilityStrategy,
     ExponentialDecayStrategy,
@@ -66,7 +68,12 @@ def load_complete_rows(path: Path) -> list[dict]:
     # Never silently forecast across missing draw IDs: a missing historical
     # draw changes rolling frequencies, gap lengths and sequential features.
     ids = sorted(int(r["id"]) for r in rows)
-    missing_ids = [f"{ident:05d}" for ident in range(ids[0], ids[-1] + 1) if ident not in set(ids)]
+    known_incomplete = {int(ident) for ident in EXPECTED_HISTORICAL_INCOMPLETE_IDS}
+    missing_ids = [
+        f"{ident:05d}"
+        for ident in range(ids[0], ids[-1] + 1)
+        if ident not in set(ids) and ident not in known_incomplete
+    ]
     if missing_ids:
         preview = ", ".join(missing_ids[:12])
         suffix = " ..." if len(missing_ids) > 12 else ""
