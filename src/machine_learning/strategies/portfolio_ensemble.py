@@ -46,12 +46,14 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         pair_reuse_penalty: float = 0.75,
         max_pair_reuse: int | None = None,
         decay_half_life_days: int = 730,
+        consensus_discount: float = 0.25,
     ) -> None:
         super().__init__(
             df,
             time_predict=time_predict,
             weights=weights,
             decay_half_life_days=decay_half_life_days,
+            consensus_discount=consensus_discount,
         )
         if tickets_per_draw <= 0:
             raise ValueError("tickets_per_draw must be > 0")
@@ -117,11 +119,13 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         self._next_index: dict[date, int] = {}
 
     def _scores(self, target_date: date) -> dict[int, float]:
-        """Return a full 1..55 score map, using weighted rank evidence."""
+        """Return candidate scores with diminishing returns for repeated evidence."""
         if self.ensemble_score_mode == "top6":
             return super()._scores(target_date)
 
-        scores = {n: 0.0 for n in range(self.min_val, self.max_val + 1)}
+        contributions: dict[int, list[float]] = {
+            n: [] for n in range(self.min_val, self.max_val + 1)
+        }
         total_numbers = self.max_val - self.min_val + 1
         for _, weight, model in self._components():
             if weight <= 0:
@@ -136,8 +140,10 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                 key=lambda n: (-float(raw_scores.get(n, 0.0)), n),
             )
             for rank, number in enumerate(ranked):
-                scores[number] += float(weight) * (total_numbers - rank)
-        return scores
+                contributions[number].append(
+                    float(weight) * (total_numbers - rank)
+                )
+        return self._aggregate_contributions(contributions)
 
     def _valid_shape(self, ticket: tuple[int, ...]) -> bool:
         if self.max_consecutive_run is None:
@@ -247,19 +253,44 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         model_keys = [k for k in reservoirs if k.startswith("model:")]
         history_keys = [k for k in reservoirs if not k.startswith("model:")]
 
-        def key(n: int) -> tuple[float, float, int]:
+        def key(n: int) -> tuple[float, float, float, int]:
             model_breadth = (
                 sum(n in reservoirs[k] for k in model_keys) / max(len(model_keys), 1)
             )
             history_breadth = (
                 sum(n in reservoirs[k] for k in history_keys) / max(len(history_keys), 1)
             )
+            model_strengths: list[float] = []
+            for _, weight, model in self._components():
+                if weight <= 0 or not hasattr(model, "score_numbers"):
+                    continue
+                raw = model.score_numbers(target_date)
+                ranked = sorted(
+                    range(self.min_val, self.max_val + 1),
+                    key=lambda number: (-float(raw.get(number, 0.0)), number),
+                )
+                rank_index = ranked.index(n)
+                model_strengths.append(
+                    (self.max_val - self.min_val - rank_index)
+                    / max(self.max_val - self.min_val, 1)
+                )
+            model_specificity = (
+                max(model_strengths) - sum(model_strengths) / len(model_strengths)
+                if model_strengths
+                else 0.0
+            )
             utility = (
-                0.58 * normalized.get(n, 0.0)
-                + 0.27 * model_breadth
+                0.52 * normalized.get(n, 0.0)
+                + 0.25 * model_specificity
+                + 0.08 * model_breadth
                 + 0.15 * history_breadth
             )
-            return (-utility, -scores.get(n, 0.0), n)
+            return (
+                -utility,
+                -model_specificity,
+                -scores.get(n, 0.0),
+                n,
+            )
 
         return sorted(pool, key=key)
 
