@@ -311,12 +311,12 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         pool: list[int],
         normalized: dict[int, float],
     ) -> list[list[int]]:
-        """Build a capacity-safe portfolio with explicit per-number quotas.
+        """Build a quota-safe portfolio by selecting whole feasible tickets.
 
-        Hard-cap callers get deterministic score-first quotas rather than a
-        potentially dead-ending unconstrained greedy pass. The default
-        24-number/30-ticket case distributes the 180 slots as twelve 8s and
-        twelve 7s, with the stronger candidates receiving the extra slots.
+        Whole-combination search avoids the dead-end behavior of greedy
+        number-by-number construction. Quotas remain exact, while the
+        objective preserves score strength, balances exposure, penalizes
+        repeated pairs, and respects historical/shape exclusions.
         """
         total_slots = self.tickets_per_draw * self.number_predict
         pool_size = len(pool)
@@ -340,101 +340,80 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         tickets: list[list[int]] = []
         seen: set[tuple[int, ...]] = set()
 
-        def ticket_utility(number: int, chosen: list[int], salt: int) -> float:
-            score = normalized.get(number, 0.0)
-            deficit = quota[number] - exposure[number]
-            quota_term = 1.0 + self.usage_penalty * max(deficit, 0) / max(quota[number], 1)
-            pair_count = sum(
-                pair_usage.get(tuple(sorted((number, other))), 0)
-                for other in chosen
-            )
-            pair_factor = 1.0 / (1.0 + self.pair_reuse_penalty * pair_count)
-            tie_rotation = 1e-9 * ((number + salt + len(chosen)) % len(pool))
-            return score * quota_term * pair_factor + tie_rotation
-
-        def build_ticket(salt: int) -> tuple[int, ...] | None:
-            chosen: list[int] = []
-            for _slot in range(self.number_predict):
-                remaining_in_ticket = self.number_predict - len(chosen) - 1
-                future_tickets = self.tickets_per_draw - len(tickets) - 1
-                candidates: list[int] = []
-
-                for number in pool:
-                    if number in chosen or exposure[number] >= quota[number]:
-                        continue
-
-                    trial = tuple(sorted(chosen + [number]))
-                    if len(trial) == self.number_predict:
-                        if trial in seen or trial in self.excluded_sets:
-                            continue
-                        if not self._valid_shape(trial):
-                            continue
-
-                    # Each number can occur at most once in the current
-                    # ticket and at most once in each future ticket. Reserve
-                    # enough bounded capacity for both the remainder of this
-                    # ticket and all future tickets. A plain count of "live"
-                    # numbers is insufficient when one number carries a large
-                    # remaining quota.
-                    remaining_quota = {
-                        item: quota[item] - exposure[item] - int(item in trial)
-                        for item in pool
-                    }
-                    required_capacity = remaining_in_ticket + future_tickets * self.number_predict
-                    bounded_capacity = sum(
-                        min(
-                            max(remaining_quota[item], 0),
-                            future_tickets + int(item not in trial),
-                        )
-                        for item in pool
-                    )
-                    if bounded_capacity < required_capacity:
-                        continue
-
-                    if future_tickets > 0:
-                        future_capacity = sum(
-                            min(max(remaining_quota[item], 0), future_tickets)
-                            for item in pool
-                        )
-                        if future_capacity < future_tickets * self.number_predict:
-                            continue
-
-                    candidates.append(number)
-
-                if not candidates:
-                    return None
-
-                ranked = sorted(
-                    candidates,
-                    key=lambda n: (
-                        -ticket_utility(n, chosen, salt),
-                        (n + salt + len(chosen)) % len(pool),
-                        n,
-                    ),
-                )
-                chosen.append(ranked[0])
-
-            ticket = tuple(sorted(chosen))
-            if ticket in seen or ticket in self.excluded_sets or not self._valid_shape(ticket):
-                return None
-            return ticket
-
         for _ticket_idx in range(self.tickets_per_draw):
-            ticket: tuple[int, ...] | None = None
-            for salt in range(len(pool) + self.tickets_per_draw):
-                candidate = build_ticket(salt)
-                if candidate is not None:
-                    ticket = candidate
-                    break
-            if ticket is None:
-                raise RuntimeError("failed to construct quota-safe portfolio ticket")
+            future_tickets = self.tickets_per_draw - len(tickets) - 1
+            available = [
+                number
+                for number in pool
+                if exposure[number] < quota[number]
+            ]
+            if len(available) < self.number_predict:
+                raise RuntimeError(
+                    "failed to construct quota-safe portfolio: insufficient candidates"
+                )
 
-            seen.add(ticket)
-            tickets.append(list(ticket))
-            for number in ticket:
+            if future_tickets > 0:
+                future_capacity = sum(
+                    min(quota[number] - exposure[number], future_tickets)
+                    for number in pool
+                )
+            else:
+                future_capacity = 0
+
+            best_ticket: tuple[int, ...] | None = None
+            best_utility = float("-inf")
+
+            for combo in combinations(available, self.number_predict):
+                if combo in seen or combo in self.excluded_sets:
+                    continue
+                if not self._valid_shape(combo):
+                    continue
+
+                if future_tickets > 0:
+                    # Selecting a number reduces its future-ticket capacity by
+                    # one only when its remaining quota is <= future_tickets.
+                    consumed_future_capacity = sum(
+                        (quota[number] - exposure[number]) <= future_tickets
+                        for number in combo
+                    )
+                    if future_capacity - consumed_future_capacity < (
+                        future_tickets * self.number_predict
+                    ):
+                        continue
+
+                score_sum = sum(normalized.get(number, 0.0) for number in combo)
+                balance_sum = sum(
+                    (quota[number] - exposure[number]) / max(quota[number], 1)
+                    for number in combo
+                )
+                repeated_pairs = sum(
+                    pair_usage.get(pair, 0)
+                    for pair in combinations(combo, 2)
+                )
+                utility = (
+                    score_sum
+                    + 0.15 * balance_sum
+                    - 0.02 * self.pair_reuse_penalty * repeated_pairs
+                )
+                tie_break = tuple(combo)
+                if utility > best_utility or (
+                    utility == best_utility
+                    and (best_ticket is None or tie_break < best_ticket)
+                ):
+                    best_utility = utility
+                    best_ticket = combo
+
+            if best_ticket is None:
+                raise RuntimeError(
+                    "failed to construct quota-safe portfolio ticket"
+                )
+
+            seen.add(best_ticket)
+            tickets.append(list(best_ticket))
+            for number in best_ticket:
                 exposure[number] += 1
-            for left, right in combinations(ticket, 2):
-                pair_usage[(left, right)] = pair_usage.get((left, right), 0) + 1
+            for pair in combinations(best_ticket, 2):
+                pair_usage[pair] = pair_usage.get(pair, 0) + 1
 
         if len(tickets) != self.tickets_per_draw or len(seen) != self.tickets_per_draw:
             raise RuntimeError("failed to build requested distinct portfolio")
@@ -444,7 +423,6 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             raise RuntimeError("hard-cap portfolio exceeded max_number_usage")
 
         return tickets
-
 
     def _build_portfolio(self, target_date: date) -> list[list[int]]:
         scores = self._scores(target_date)
