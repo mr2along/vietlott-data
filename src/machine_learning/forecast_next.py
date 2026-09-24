@@ -62,6 +62,18 @@ def load_complete_rows(path: Path) -> list[dict]:
     rows = sorted(rows_by_id.values(), key=lambda r: (r["date"], r["id"]))
     if len(rows) < 100:
         raise RuntimeError(f"Need at least 100 complete Power 6/55 rows, got {len(rows)}")
+
+    # Never silently forecast across missing draw IDs: a missing historical
+    # draw changes rolling frequencies, gap lengths and sequential features.
+    ids = sorted(int(r["id"]) for r in rows)
+    missing_ids = [f"{ident:05d}" for ident in range(ids[0], ids[-1] + 1) if ident not in set(ids)]
+    if missing_ids:
+        preview = ", ".join(missing_ids[:12])
+        suffix = " ..." if len(missing_ids) > 12 else ""
+        raise RuntimeError(
+            f"Power 6/55 dataset has {len(missing_ids)} missing draw IDs between "
+            f"{ids[0]:05d} and {ids[-1]:05d}: {preview}{suffix}"
+        )
     return rows
 
 
@@ -105,8 +117,8 @@ def main() -> None:
     parser.add_argument(
         "--max-number-usage",
         type=int,
-        default=6,
-        help="Maximum appearances of one candidate number across the portfolio",
+        default=None,
+        help="Optional hard maximum appearances of one candidate number; omit for soft score-weighted exposure",
     )
     parser.add_argument(
         "--candidate-pool-size",
@@ -130,7 +142,7 @@ def main() -> None:
 
     if args.tickets < 1:
         raise ValueError("--tickets must be >= 1")
-    if args.max_number_usage < 1:
+    if args.max_number_usage is not None and args.max_number_usage < 1:
         raise ValueError("--max-number-usage must be >= 1")
     if args.candidate_pool_size < 6:
         raise ValueError("--candidate-pool-size must be >= 6")
@@ -166,6 +178,8 @@ def main() -> None:
             max_number_usage=args.max_number_usage,
             coverage_rescue_size=args.coverage_rescue_size,
             ensemble_score_mode=args.ensemble_score_mode,
+            exposure_power=1.35,
+            pair_reuse_penalty=0.75,
         ),
         "UnseenPortfolioEnsemble": PortfolioEnsembleStrategy(
             df,
