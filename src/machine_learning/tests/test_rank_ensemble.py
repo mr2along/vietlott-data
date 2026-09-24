@@ -53,3 +53,40 @@ def test_rank_ensemble_does_not_use_target_or_special_number():
     second = leaked_model.predict(date(2026, 1, 13))
 
     assert first == second
+
+
+def test_rank_ensemble_discounts_repeated_consensus_evidence():
+    class StubModel:
+        def __init__(self, selected):
+            self.selected = list(selected)
+
+        def predict(self, target_date):
+            return list(self.selected)
+
+    model = RankEnsembleStrategy(
+        pd.DataFrame(
+            [
+                {"date": date(2026, 1, 1), "result": [1, 2, 3, 4, 5, 6]},
+                {"date": date(2026, 1, 3), "result": [7, 8, 9, 10, 11, 12]},
+                {"date": date(2026, 1, 5), "result": [13, 14, 15, 16, 17, 18]},
+                {"date": date(2026, 1, 7), "result": [19, 20, 21, 22, 23, 24]},
+                {"date": date(2026, 1, 9), "result": [25, 26, 27, 28, 29, 30]},
+                {"date": date(2026, 1, 11), "result": [31, 32, 33, 34, 35, 36]},
+            ]
+        ),
+        consensus_discount=0.25,
+    )
+    model._components = lambda: [
+        ("A", 0.4, StubModel([55, 54, 53, 52, 51, 50])),
+        ("B", 0.3, StubModel([54, 53, 52, 51, 50, 49])),
+        ("C", 0.3, StubModel([54, 53, 52, 51, 50, 49])),
+    ]
+
+    scores = model._scores(date(2026, 1, 13))
+
+    # Number 54 is supported by all three models, but repeated evidence is
+    # discounted instead of being counted three times at full strength.
+    linear_54 = 0.4 * 5 + 0.3 * 6 + 0.3 * 6
+    assert scores[54] < linear_54
+    assert scores[54] == 2.55
+    assert scores[55] == 2.4
