@@ -105,7 +105,16 @@ def main() -> None:
     incomplete.sort(key=_sort_key)
 
     all_ids = sorted(int(x) for x in ids)
-    id_gaps = [f"{ident:05d}" for ident in range(all_ids[0], all_ids[-1] + 1) if ident not in set(all_ids)] if all_ids else []
+    known_missing_ids = {int(x) for x in EXPECTED_HISTORICAL_INCOMPLETE_IDS}
+    id_gaps = (
+        [
+            f"{ident:05d}"
+            for ident in range(all_ids[0], all_ids[-1] + 1)
+            if ident not in set(all_ids) and ident not in known_missing_ids
+        ]
+        if all_ids
+        else []
+    )
 
     benchmark_text = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in valid)
     incomplete_text = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in incomplete)
