@@ -83,6 +83,8 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             raise ValueError("exposure_power must be > 0")
         if pair_reuse_penalty < 0:
             raise ValueError("pair_reuse_penalty must be non-negative")
+        if max_pair_reuse is not None and int(max_pair_reuse) < 1:
+            raise ValueError("max_pair_reuse must be >= 1 or None")
 
         self.tickets_per_draw = int(tickets_per_draw)
         self.candidate_pool_size = int(candidate_pool_size)
@@ -105,6 +107,9 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         self.ensemble_score_mode = ensemble_score_mode
         self.exposure_power = float(exposure_power)
         self.pair_reuse_penalty = float(pair_reuse_penalty)
+        self.max_pair_reuse = (
+            int(max_pair_reuse) if max_pair_reuse is not None else None
+        )
 
         self._candidate_cache: dict[date, tuple[list[int], list[int], list[int]]] = {}
         self._portfolio_cache: dict[date, list[list[int]]] = {}
@@ -529,6 +534,15 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                     and exposure[number] >= self.max_number_usage
                 ):
                     continue
+                if (
+                    self.max_pair_reuse is not None
+                    and any(
+                        pair_usage.get(tuple(sorted((number, other))), 0)
+                        >= self.max_pair_reuse
+                        for other in chosen
+                    )
+                ):
+                    continue
                 trial = tuple(sorted(chosen + [number]))
                 if len(trial) == self.number_predict and not self._valid_shape(trial):
                     continue
@@ -539,6 +553,21 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             chosen: list[int] = []
             for _slot in range(self.number_predict):
                 candidates = feasible_candidates(chosen, ticket_idx)
+                if not candidates:
+                    # Pair reuse is a diversity constraint, not a correctness
+                    # constraint. Near the end of a portfolio there can be no
+                    # candidate left under a strict pair ceiling; relax only
+                    # the ceiling for this slot rather than failing the forecast.
+                    candidates = [
+                        number for number in pool
+                        if number not in chosen
+                        and (
+                            len(chosen) + 1 < self.number_predict
+                            or self._valid_shape(
+                                tuple(sorted(chosen + [number]))
+                            )
+                        )
+                    ]
                 if not candidates:
                     raise RuntimeError("failed to find feasible portfolio candidate")
 
