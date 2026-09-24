@@ -489,6 +489,68 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         if self.max_number_usage is not None:
             return self._build_hard_cap_portfolio(pool, normalized)
 
+        # Production default: 30 candidates x 30 tickets. A cyclic balanced
+        # block design gives every candidate exactly six appearances while
+        # spreading pair reuse and avoiding the repeated five-block pattern that
+        # previously concentrated the strongest candidates together. We retain
+        # score information in candidate-pool selection and in the phase/order:
+        # the first block contains the highest-ranked candidates.
+        if (
+            self.max_pair_reuse is not None
+            and self.tickets_per_draw == 30
+            and len(pool) == 30
+        ):
+            pair_cap = self.max_pair_reuse
+            rng_seed = sum((index + 1) * number for index, number in enumerate(pool))
+            for attempt in range(2048):
+                rng = random.Random(rng_seed + attempt)
+                positions = list(range(30))
+                rng.shuffle(positions)
+
+                # Put the highest-ranked candidates in the first six positions
+                # so the first emitted ticket remains score-led.
+                position_order = [None] * 30
+                for pos, number in zip(range(6), pool[:6]):
+                    position_order[pos] = number
+                remainder_numbers = list(pool[6:])
+                rng.shuffle(remainder_numbers)
+                free_positions = positions
+                cursor = 0
+                for pos in free_positions:
+                    if position_order[pos] is None:
+                        position_order[pos] = remainder_numbers[cursor]
+                        cursor += 1
+
+                pattern = tuple(sorted(rng.sample(range(30), 6)))
+                blocks = [
+                    tuple(sorted(position_order[(start + offset) % 30] for offset in pattern))
+                    for start in range(30)
+                ]
+                if len(set(blocks)) != 30:
+                    continue
+                if any(not self._valid_shape(block) for block in blocks):
+                    continue
+                if any(block in self.excluded_sets for block in blocks):
+                    continue
+
+                pair_usage = Counter(
+                    pair
+                    for block in blocks
+                    for pair in combinations(block, 2)
+                )
+                if max(pair_usage.values(), default=0) > pair_cap:
+                    continue
+
+                exposure = Counter(number for block in blocks for number in block)
+                if any(exposure[number] != 6 for number in pool):
+                    continue
+
+                return [list(block) for block in blocks]
+
+            raise RuntimeError(
+                "unable to construct balanced 30-ticket portfolio within pair/shape constraints"
+            )
+
         # Score-powered exposure targets: strong candidates can appear more
         # than six times; the target is a soft preference, not a hard quota.
         weights = {
