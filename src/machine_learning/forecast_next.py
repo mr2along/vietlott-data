@@ -215,6 +215,9 @@ def main() -> None:
             max_consecutive_run=3,
             coverage_rescue_size=args.coverage_rescue_size,
             ensemble_score_mode=args.ensemble_score_mode,
+            exposure_power=1.35,
+            pair_reuse_penalty=0.75,
+            decay_half_life_days=decay_half_life_days,
         ),
     }
 
