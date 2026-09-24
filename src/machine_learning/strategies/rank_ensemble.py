@@ -27,6 +27,7 @@ class RankEnsembleStrategy(PredictModel):
         df: pd.DataFrame,
         time_predict: int = 1,
         weights: dict[str, float] | None = None,
+        decay_half_life_days: int = 730,
     ) -> None:
         super().__init__(df, time_predict)
         self.weights = weights or {
@@ -38,13 +39,16 @@ class RankEnsembleStrategy(PredictModel):
             raise ValueError("ensemble weights must be non-negative")
         if sum(float(v) for v in self.weights.values()) <= 0:
             raise ValueError("at least one ensemble weight must be positive")
+        if int(decay_half_life_days) <= 0:
+            raise ValueError("decay_half_life_days must be > 0")
+        self.decay_half_life_days = int(decay_half_life_days)
 
         self._cache: Dict[date, List[int]] = {}
         self._bayesian = BayesianProbabilityStrategy(
             df, time_predict=1, prior_strength=20.0, half_life_days=180.0
         )
         self._decay = ExponentialDecayStrategy(
-            df, time_predict=1, half_life_days=730, hot=True, selection_weight=1.0
+            df, time_predict=1, half_life_days=self.decay_half_life_days, hot=True, selection_weight=1.0
         )
         self._logistic = LogisticProbabilityStrategy(df, time_predict=1)
 

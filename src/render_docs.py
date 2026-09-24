@@ -37,7 +37,7 @@ class DocsRenderer:
     def _load_lottery_data(self, product: str) -> pl.DataFrame:
         """Load and prepare lottery data for analysis."""
         try:
-            df = pl.read_ndjson(get_config(product).raw_path)
+            df = pl.read_ndjson(get_config(product).raw_path, infer_schema_length=None)
 
             # Normalize/parse date column which can be in multiple formats
             if "date" in df.columns:

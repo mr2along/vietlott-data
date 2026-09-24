@@ -61,13 +61,15 @@ def run_strategy(name: str, rows: list[dict[str, Any]], make_strategy, seed: int
     results: list[list[int]] = []
     tickets_by_draw: list[list[list[int]]] = []
     per_draw: list[dict[str, Any]] = []
-    full_history_df = pd.DataFrame(
-        [{"date": r["date"], "result": list(r["result"][:6])} for r in ordered]
-    )
-    strategy = make_strategy(full_history_df, ordered[min_history]["date"] if len(ordered) > min_history else None)
-
     for index in range(min_history, len(ordered)):
         target = ordered[index]
+        # Instantiate from strictly prior draws for every target date. This
+        # prevents future rows from entering strategy initialization/caches and
+        # makes this benchmark match the dedicated walk-forward runner.
+        history_df = pd.DataFrame(
+            [{"date": r["date"], "result": list(r["result"][:6])} for r in ordered[:index]]
+        )
+        strategy = make_strategy(history_df, target["date"])
         tickets = [list(map(int, strategy.predict(target["date"]))) for _ in range(PRIZES.tickets_per_draw)]
         target_result = list(target["result"])
         results.append(target_result)
@@ -113,8 +115,12 @@ def main() -> None:
         "PortfolioEnsemble": factory(
             PortfolioEnsembleStrategy,
             tickets_per_draw=PRIZES.tickets_per_draw,
-            candidate_pool_size=24,
+            candidate_pool_size=30,
             usage_penalty=0.35,
+            coverage_rescue_size=8,
+            ensemble_score_mode="full_rank",
+            exposure_power=1.35,
+            pair_reuse_penalty=0.75,
         ),
         "UnseenSetGap": factory(UnseenSetGapStrategy, candidate_pool_size=18, max_attempts=200),
     }

@@ -34,12 +34,9 @@ class BayesianProbabilityStrategy(PredictModel):
         self.half_life_days = half_life_days
         self._cache: Dict[date, List[int]] = {}
 
-    def predict(self, target_date: date) -> List[int]:
-        target = pd.Timestamp(target_date)
-        if target_date in self._cache:
-            return list(self._cache[target_date])
-
+    def _posterior_scores(self, target_date: date) -> Dict[int, float]:
         history = self.df[self.df["date"] < target_date]
+        target = pd.Timestamp(target_date)
         p0 = self.number_predict / (self.max_val - self.min_val + 1)
         alpha0 = self.prior_strength * p0
         beta0 = self.prior_strength * (1.0 - p0)
@@ -58,10 +55,19 @@ class BayesianProbabilityStrategy(PredictModel):
                 if self.min_val <= n <= self.max_val:
                     hits[n] += weight
 
-        posterior = {
+        return {
             n: (alpha0 + hits[n]) / (alpha0 + beta0 + trials)
             for n in range(self.min_val, self.max_val + 1)
         }
+
+    def score_numbers(self, target_date: date) -> Dict[int, float]:
+        return self._posterior_scores(target_date)
+
+    def predict(self, target_date: date) -> List[int]:
+        if target_date in self._cache:
+            return list(self._cache[target_date])
+
+        posterior = self._posterior_scores(target_date)
         result = sorted(posterior, key=lambda n: (-posterior[n], n))[: self.number_predict]
         self._cache[target_date] = result
         return list(result)

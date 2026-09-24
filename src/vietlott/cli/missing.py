@@ -29,11 +29,17 @@ def detect_missing_data(ctx, product, limit):
     logger.info(f"product={product}, limit={limit}")
 
     product_cfg: ProductConfig = product_config_map[product]
-    df = pl.read_ndjson(product_cfg.raw_path)
+    # Fallback crawls may add optional provenance fields to only the newest rows.
+    # Infer the NDJSON schema from the full file so a late-added UTF-8 column
+    # such as `source` is not inferred as NULL-only from the first 100 rows.
+    df = pl.read_ndjson(product_cfg.raw_path, infer_schema_length=None)
     logger.info(f"ID column data type: {df['id'].dtype}")
     # Handle both string and numeric IDs
     if df["id"].dtype == pl.String:
         df = df.with_columns(pl.col("id").str.replace("#", "").cast(pl.Int64))
+    # Gap detection is ID-based, not source-file-order based. Historical raw
+    # rows may be out of chronological order.
+    df = df.sort("id")
     df = df.with_columns(pl.col("id").shift(-1).alias("id_next"))
     df = df.with_columns((pl.col("id_next") - pl.col("id")).alias("diff"))
 

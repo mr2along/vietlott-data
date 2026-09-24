@@ -36,6 +36,11 @@ class ExponentialDecayStrategy(PredictModel):
             if int(n) in scores: scores[int(n)] = float(score)
         return scores
 
+    def score_numbers(self, target_date: date) -> Dict[int, float]:
+        if target_date not in self._score_cache:
+            self._score_cache[target_date] = self._compute_scores(target_date)
+        return dict(self._score_cache[target_date])
+
     def predict(self, target_date: date) -> List[int]:
         if target_date not in self._score_cache:
             self._score_cache[target_date] = self._compute_scores(target_date)
