@@ -40,6 +40,18 @@ def test_power655_normalizer_canonicalizes_dates_and_ids():
     assert _canonical_date("2026-09-17") == "2026-09-17"
 
 
+def test_verified_power655_00944_is_a_complete_draw():
+    row = {
+        "id": "00944",
+        "date": "2023-10-14",
+        "result": [8, 23, 30, 34, 38, 47, 10],
+    }
+    ident, canonical_date, result = _validate_row_shape(row)
+    assert ident == "00944"
+    assert canonical_date == "2023-10-14"
+    assert result == [8, 23, 30, 34, 38, 47, 10]
+
+
 def test_forecast_loader_rejects_internal_draw_id_gap(tmp_path):
     path = tmp_path / "power655.jsonl"
     rows = []
