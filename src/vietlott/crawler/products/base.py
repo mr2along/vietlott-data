@@ -153,7 +153,7 @@ class BaseProduct:
             current_data_count = len(current_data)
             existing_ids = set(current_data["id"].to_list())
             df_take = df_crawled.filter(~pl.col("id").is_in(existing_ids))
-            df_final = pl.concat([current_data, df_take])
+            df_final = pl.concat([current_data, df_take], how="diagonal_relaxed")
         else:
             df_final = df_crawled
 
