@@ -197,3 +197,52 @@ def test_full_rank_mode_rejects_missing_score_api():
         assert "full number scores" in str(exc)
     else:
         raise AssertionError("expected full-score API validation to fail")
+
+
+def test_protected_core_is_not_displaced_by_reservoir():
+    target = date(2026, 1, 13)
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=30,
+        coverage_rescue_size=8,
+        ensemble_score_mode="full_rank",
+    )
+    forced_scores = {number: 0.0 for number in range(1, 56)}
+    for number in range(1, 23):
+        forced_scores[number] = float(1000 - number)
+    model._scores = lambda _: forced_scores
+    model._coverage_rank = lambda _target, _excluded: list(range(23, 56))
+
+    details = model.candidate_pool_details(target)
+
+    assert details["core"] == list(range(1, 23))
+    assert details["coverage_rescue"] == list(range(23, 31))
+    assert set(details["core"]).isdisjoint(details["coverage_rescue"])
+    assert len(details["pool"]) == 30
+
+
+def test_soft_exposure_allows_strong_numbers_more_than_six_times():
+    target = date(2026, 1, 13)
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=30,
+        ensemble_score_mode="full_rank",
+        exposure_power=1.35,
+        pair_reuse_penalty=0.75,
+    )
+    forced_scores = {number: 0.0 for number in range(1, 56)}
+    for number in range(1, 31):
+        forced_scores[number] = float(1000 - number * number)
+    model._scores = lambda _: forced_scores
+
+    tickets = [tuple(model.predict(target)) for _ in range(30)]
+    usage = Counter(n for ticket in tickets for n in ticket)
+
+    assert len(tickets) == 30
+    assert len(set(tickets)) == 30
+    assert sum(usage.values()) == 180
+    assert max(usage.values()) > 6
