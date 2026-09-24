@@ -15,6 +15,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import date, timedelta
 from itertools import combinations
+import random
 from typing import Iterable
 
 import pandas as pd
@@ -334,6 +335,53 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             number: base_quota + (1 if index < remainder else 0)
             for index, number in enumerate(ordered)
         }
+
+        # When a shape constraint is active, exact quota construction can be
+        # solved directly with a small balanced block design. This avoids the
+        # combinatorial dead-end caused by mixing shape filtering with greedy
+        # quota consumption. The 30-ticket/24-candidate production-compatible
+        # case uses 24 cyclic base blocks (replication 6 each) plus six
+        # staggered blocks (+1/+2 replication), yielding the required 7/8
+        # appearances while keeping the score-ranked top half on the extra slots.
+        if self.max_consecutive_run is not None and self.tickets_per_draw == 30 and len(pool) == 24:
+            doubled_positions = {0, 1, 4, 5, 8, 9, 12, 13, 16, 17, 20, 21}
+            single_positions = set(range(24)) - doubled_positions
+            rng_seed = sum((index + 1) * number for index, number in enumerate(ordered))
+            for attempt in range(512):
+                rng = random.Random(rng_seed + attempt)
+                position_order = [None] * 24
+                top = ordered[:12]
+                bottom = ordered[12:]
+                rng.shuffle(top)
+                rng.shuffle(bottom)
+                for pos, number in zip(sorted(doubled_positions), top):
+                    position_order[pos] = number
+                for pos, number in zip(sorted(single_positions), bottom):
+                    position_order[pos] = number
+
+                pattern = tuple(sorted(rng.sample(range(24), self.number_predict)))
+                base_blocks = [
+                    tuple(sorted(position_order[(start + offset) % 24] for offset in pattern))
+                    for start in range(24)
+                ]
+                extra_starts = (0, 4, 8, 12, 16, 20)
+                extra_blocks = [
+                    tuple(sorted(position_order[(start + offset) % 24] for offset in range(6)))
+                    for start in extra_starts
+                ]
+                candidate_blocks = base_blocks + extra_blocks
+
+                if len(set(candidate_blocks)) != 30:
+                    continue
+                if any(not self._valid_shape(block) for block in candidate_blocks):
+                    continue
+                observed = Counter(number for block in candidate_blocks for number in block)
+                expected = {
+                    number: quota[number]
+                    for number in pool
+                }
+                if observed == expected:
+                    return [list(block) for block in candidate_blocks]
 
         exposure = {number: 0 for number in pool}
         pair_usage: dict[tuple[int, int], int] = {}
