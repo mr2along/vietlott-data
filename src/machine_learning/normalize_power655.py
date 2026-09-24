@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-EXPECTED_HISTORICAL_INCOMPLETE_IDS = {"00944"}
+EXPECTED_HISTORICAL_INCOMPLETE_IDS: set[str] = set()
 MIN_BENCHMARK_ROWS = 100
 
 
