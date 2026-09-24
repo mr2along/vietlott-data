@@ -115,8 +115,12 @@ def main() -> None:
         "PortfolioEnsemble": factory(
             PortfolioEnsembleStrategy,
             tickets_per_draw=PRIZES.tickets_per_draw,
-            candidate_pool_size=24,
+            candidate_pool_size=30,
             usage_penalty=0.35,
+            coverage_rescue_size=8,
+            ensemble_score_mode="full_rank",
+            exposure_power=1.35,
+            pair_reuse_penalty=0.75,
         ),
         "UnseenSetGap": factory(UnseenSetGapStrategy, candidate_pool_size=18, max_attempts=200),
     }
