@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - "forecast/next-power655-*"
+  workflow_run:
+    workflows:
+      - "Crawl Vietlott Data"
+    types:
+      - completed
   pull_request:
     branches:
       - main
@@ -17,10 +22,13 @@ env:
 
 jobs:
   forecast:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && 'main' || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -42,7 +50,7 @@ jobs:
       - name: Validate decay hyperparameter on historical validation
         run: python -m src.machine_learning.run_decay_validation
       - name: Generate next-draw forecast
-        run: python -m src.machine_learning.forecast_next --tickets 30 --candidate-pool-size 30 --coverage-rescue-size 8 --ensemble-score-mode full_rank
+        run: python -m src.machine_learning.forecast_next --tickets 30 --candidate-pool-size 30 --coverage-rescue-size 8 --ensemble-score-mode full_rank --max-pair-reuse 2
       - name: Audit candidate-pool coverage
         run: python -m src.machine_learning.audit_forecast_candidates --last-draws 60 --candidate-pool-size 30 --coverage-rescue-size 8 --ensemble-score-mode full_rank
       - name: Upload forecast artifact
