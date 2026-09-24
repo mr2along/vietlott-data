@@ -370,22 +370,33 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                         if not self._valid_shape(trial):
                             continue
 
-                    # Reserve enough quota capacity to finish this ticket and
-                    # keep at least one full ticket of distinct candidates for
-                    # every future ticket.
-                    immediate_candidates = sum(
-                        item not in trial and exposure[item] < quota[item]
+                    # Each number can occur at most once in the current
+                    # ticket and at most once in each future ticket. Reserve
+                    # enough bounded capacity for both the remainder of this
+                    # ticket and all future tickets. A plain count of "live"
+                    # numbers is insufficient when one number carries a large
+                    # remaining quota.
+                    remaining_quota = {
+                        item: quota[item] - exposure[item] - int(item in trial)
+                        for item in pool
+                    }
+                    required_capacity = remaining_in_ticket + future_tickets * self.number_predict
+                    bounded_capacity = sum(
+                        min(
+                            max(remaining_quota[item], 0),
+                            future_tickets + int(item not in trial),
+                        )
                         for item in pool
                     )
-                    if immediate_candidates < remaining_in_ticket:
+                    if bounded_capacity < required_capacity:
                         continue
 
                     if future_tickets > 0:
-                        available_for_next_ticket = sum(
-                            exposure[item] + int(item in trial) < quota[item]
+                        future_capacity = sum(
+                            min(max(remaining_quota[item], 0), future_tickets)
                             for item in pool
                         )
-                        if available_for_next_ticket < self.number_predict:
+                        if future_capacity < future_tickets * self.number_predict:
                             continue
 
                     candidates.append(number)
