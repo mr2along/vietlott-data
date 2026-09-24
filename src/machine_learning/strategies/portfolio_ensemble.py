@@ -313,13 +313,10 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
     ) -> list[list[int]]:
         """Build a capacity-safe portfolio with explicit per-number quotas.
 
-        When a hard usage cap is requested, every slot has a finite capacity.
-        Greedy per-number selection can consume high-score numbers too early
-        and leave no valid six-number combination for a later ticket. Quota
-        construction makes the finite-capacity problem explicit: distribute
-        the exact 180 slots across candidates (7/8 each for the default
-        24-number, 30-ticket case), then choose distinct valid combinations
-        until all quotas are consumed.
+        Hard-cap callers get deterministic score-first quotas rather than a
+        potentially dead-ending unconstrained greedy pass. The default
+        24-number/30-ticket case distributes the 180 slots as twelve 8s and
+        twelve 7s, with the stronger candidates receiving the extra slots.
         """
         total_slots = self.tickets_per_draw * self.number_predict
         pool_size = len(pool)
@@ -328,14 +325,11 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         if cap is None:
             raise RuntimeError("hard-cap portfolio requires max_number_usage")
         if base_quota > cap or (base_quota == cap and remainder > 0):
-            raise RuntimeError("max_number_usage does not provide enough per-number capacity")
+            raise RuntimeError(
+                "max_number_usage does not provide enough per-number capacity"
+            )
 
-        # Give the remainder slots to stronger candidates first, while keeping
-        # every quota within the requested hard cap.
-        ordered = sorted(
-            pool,
-            key=lambda n: (-normalized.get(n, 0.0), n),
-        )
+        ordered = sorted(pool, key=lambda n: (-normalized.get(n, 0.0), n))
         quota = {
             number: base_quota + (1 if index < remainder else 0)
             for index, number in enumerate(ordered)
@@ -346,55 +340,89 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         tickets: list[list[int]] = []
         seen: set[tuple[int, ...]] = set()
 
-        valid_combos = [
-            combo
-            for combo in combinations(pool, self.number_predict)
-            if self._valid_shape(combo)
-            and combo not in self.excluded_sets
-        ]
-        if len(valid_combos) < self.tickets_per_draw:
-            raise RuntimeError("insufficient valid combinations for hard-cap portfolio")
+        def ticket_utility(number: int, chosen: list[int], salt: int) -> float:
+            score = normalized.get(number, 0.0)
+            deficit = quota[number] - exposure[number]
+            quota_term = 1.0 + self.usage_penalty * max(deficit, 0) / max(quota[number], 1)
+            pair_count = sum(
+                pair_usage.get(tuple(sorted((number, other))), 0)
+                for other in chosen
+            )
+            pair_factor = 1.0 / (1.0 + self.pair_reuse_penalty * pair_count)
+            tie_rotation = 1e-9 * ((number + salt + len(chosen)) % len(pool))
+            return score * quota_term * pair_factor + tie_rotation
+
+        def build_ticket(salt: int) -> tuple[int, ...] | None:
+            chosen: list[int] = []
+            for _slot in range(self.number_predict):
+                remaining_in_ticket = self.number_predict - len(chosen) - 1
+                future_tickets = self.tickets_per_draw - len(tickets) - 1
+                candidates: list[int] = []
+
+                for number in pool:
+                    if number in chosen or exposure[number] >= quota[number]:
+                        continue
+
+                    trial = tuple(sorted(chosen + [number]))
+                    if len(trial) == self.number_predict:
+                        if trial in seen or trial in self.excluded_sets:
+                            continue
+                        if not self._valid_shape(trial):
+                            continue
+
+                    # Reserve enough quota capacity to finish this ticket and
+                    # keep at least one full ticket of distinct candidates for
+                    # every future ticket.
+                    immediate_candidates = sum(
+                        item not in trial and exposure[item] < quota[item]
+                        for item in pool
+                    )
+                    if immediate_candidates < remaining_in_ticket:
+                        continue
+
+                    if future_tickets > 0:
+                        available_for_next_ticket = sum(
+                            exposure[item] + int(item in trial) < quota[item]
+                            for item in pool
+                        )
+                        if available_for_next_ticket < self.number_predict:
+                            continue
+
+                    candidates.append(number)
+
+                if not candidates:
+                    return None
+
+                ranked = sorted(
+                    candidates,
+                    key=lambda n: (
+                        -ticket_utility(n, chosen, salt),
+                        (n + salt + len(chosen)) % len(pool),
+                        n,
+                    ),
+                )
+                chosen.append(ranked[0])
+
+            ticket = tuple(sorted(chosen))
+            if ticket in seen or ticket in self.excluded_sets or not self._valid_shape(ticket):
+                return None
+            return ticket
 
         for _ticket_idx in range(self.tickets_per_draw):
-            best_combo: tuple[int, ...] | None = None
-            best_utility = float("-inf")
-
-            for combo in valid_combos:
-                if combo in seen:
-                    continue
-                if any(exposure[number] >= quota[number] for number in combo):
-                    continue
-
-                utility = sum(
-                    normalized.get(number, 0.0)
-                    + self.usage_penalty
-                    * max(quota[number] - exposure[number], 0)
-                    / max(quota[number], 1)
-                    for number in combo
-                )
-                utility -= self.pair_reuse_penalty * sum(
-                    pair_usage.get((left, right), 0)
-                    for left, right in combinations(combo, 2)
-                )
-
-                if (
-                    utility > best_utility
-                    or (
-                        utility == best_utility
-                        and (best_combo is None or combo < best_combo)
-                    )
-                ):
-                    best_combo = combo
-                    best_utility = utility
-
-            if best_combo is None:
+            ticket: tuple[int, ...] | None = None
+            for salt in range(len(pool) + self.tickets_per_draw):
+                candidate = build_ticket(salt)
+                if candidate is not None:
+                    ticket = candidate
+                    break
+            if ticket is None:
                 raise RuntimeError("failed to construct quota-safe portfolio ticket")
 
-            seen.add(best_combo)
-            tickets.append(list(best_combo))
-            for number in best_combo:
+            seen.add(ticket)
+            tickets.append(list(ticket))
+            for number in ticket:
                 exposure[number] += 1
-            for left, right in combinations(best_combo, 2):
+            for left, right in combinations(ticket, 2):
                 pair_usage[(left, right)] = pair_usage.get((left, right), 0) + 1
 
         if len(tickets) != self.tickets_per_draw or len(seen) != self.tickets_per_draw:
@@ -405,6 +433,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             raise RuntimeError("hard-cap portfolio exceeded max_number_usage")
 
         return tickets
+
 
     def _build_portfolio(self, target_date: date) -> list[list[int]]:
         scores = self._scores(target_date)
