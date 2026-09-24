@@ -44,6 +44,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         ensemble_score_mode: str = "top6",
         exposure_power: float = 1.35,
         pair_reuse_penalty: float = 0.75,
+        max_pair_reuse: int | None = 2,
         decay_half_life_days: int = 730,
     ) -> None:
         super().__init__(
