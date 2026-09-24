@@ -33,8 +33,16 @@ jobs:
         run: |
           vietlott-crawl power_655 --index-from 0 --index-to 1
           tail -n 3 data/power655.jsonl
+      - name: Backfill missing Power 6/55 draws
+        run: |
+          vietlott-missing power_655 --limit 20
+          tail -n 12 data/power655.jsonl
+      - name: Validate and normalize Power 6/55 history
+        run: python -m src.machine_learning.normalize_power655
+      - name: Validate decay hyperparameter on historical validation
+        run: python -m src.machine_learning.run_decay_validation
       - name: Generate next-draw forecast
-        run: python -m src.machine_learning.forecast_next --tickets 30 --max-number-usage 6 --candidate-pool-size 30 --coverage-rescue-size 0 --ensemble-score-mode full_rank
+        run: python -m src.machine_learning.forecast_next --tickets 30 --candidate-pool-size 30 --coverage-rescue-size 8 --ensemble-score-mode full_rank
       - name: Audit candidate-pool coverage
         run: python -m src.machine_learning.audit_forecast_candidates --last-draws 60 --candidate-pool-size 30 --coverage-rescue-size 8 --ensemble-score-mode full_rank
       - name: Upload forecast artifact
