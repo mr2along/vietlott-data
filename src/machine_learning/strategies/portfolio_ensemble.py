@@ -155,12 +155,13 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         span = hi - lo
         return {n: (score - lo) / span for n, score in scores.items()}
 
-    def _coverage_rank(self, target_date: date, excluded: set[int]) -> list[int]:
-        """Rank historical reservoir candidates outside the protected core."""
+    def _reservoir_sets(self, target_date: date) -> dict[str, set[int]]:
+        """Build independent candidate reservoirs without using the target draw."""
         history = self.df[self.df["date"] < target_date].sort_values("date")
         if history.empty:
-            return []
+            return {}
 
+        reservoirs: dict[str, set[int]] = {}
         recent = history.tail(self.coverage_recent_draws)
         long_window = history.tail(self.coverage_long_draws)
         recent_counts = Counter(
@@ -173,45 +174,87 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             for values in long_window["result"].tolist()
             for n in list(values)[: self.number_predict]
         )
-
         all_numbers = list(range(self.min_val, self.max_val + 1))
-        latest_numbers = set(int(n) for n in list(history.iloc[-1]["result"])[: self.number_predict])
-        previous_numbers: set[int] = set()
-        if len(history) >= 2:
-            previous_numbers = set(
-                int(n) for n in list(history.iloc[-2]["result"])[: self.number_predict]
-            )
 
-        last_seen: dict[int, date] = {}
+        reservoirs["recent"] = {
+            n for n, _ in sorted(
+                recent_counts.items(), key=lambda item: (-item[1], item[0])
+            )[:12]
+        }
+        reservoirs["long_frequency"] = {
+            n for n, _ in sorted(
+                long_counts.items(), key=lambda item: (-item[1], item[0])
+            )[:15]
+        }
+
+        latest_numbers = set(
+            int(n) for n in list(history.iloc[-1]["result"])[: self.number_predict]
+        )
+        reservoirs["repeat"] = set(latest_numbers)
+        if len(history) >= 2:
+            reservoirs["repeat"] |= {
+                int(n) for n in list(history.iloc[-2]["result"])[: self.number_predict]
+            }
+
         exploded = history.copy()
-        exploded["result"] = exploded["result"].apply(lambda x: list(x)[: self.number_predict])
+        exploded["result"] = exploded["result"].apply(
+            lambda x: list(x)[: self.number_predict]
+        )
         exploded = exploded.explode("result")
+        last_seen: dict[int, date] = {}
         if not exploded.empty:
             last_seen = exploded.groupby("result")["date"].max().to_dict()
 
         gaps = {
-            n: float("inf") if n not in last_seen else float((target_date - last_seen[n]).days)
+            n: float("inf")
+            if n not in last_seen
+            else float((target_date - last_seen[n]).days)
             for n in all_numbers
         }
-        finite_gaps = [value for value in gaps.values() if value != float("inf")]
-        max_gap = max(finite_gaps, default=1.0)
-        max_recent = max(recent_counts.values(), default=1)
-        max_long = max(long_counts.values(), default=1)
+        reservoirs["overdue"] = set(
+            sorted(all_numbers, key=lambda n: (-gaps[n], n))[:12]
+        )
+
+        for name, weight, model in self._components():
+            if weight <= 0:
+                continue
+            if hasattr(model, "score_numbers"):
+                raw = model.score_numbers(target_date)
+                ranked = sorted(
+                    all_numbers,
+                    key=lambda n: (-float(raw.get(n, 0.0)), n),
+                )
+                reservoirs[f"model:{name}"] = set(ranked[:12])
+
+        return reservoirs
+
+    def _coverage_rank(self, target_date: date, excluded: set[int]) -> list[int]:
+        """Rank reservoir candidates outside the protected core."""
+        reservoirs = self._reservoir_sets(target_date)
+        if not reservoirs:
+            return []
+
+        scores = self._scores(target_date)
+        normalized = self._normalize(scores)
+        pool = [n for n in range(self.min_val, self.max_val + 1) if n not in excluded]
+        model_keys = [k for k in reservoirs if k.startswith("model:")]
+        history_keys = [k for k in reservoirs if not k.startswith("model:")]
 
         def key(n: int) -> tuple[float, float, int]:
-            recent_norm = recent_counts.get(n, 0) / max_recent
-            long_norm = long_counts.get(n, 0) / max_long
-            repeat = 1.0 if n in latest_numbers else 0.5 if n in previous_numbers else 0.0
-            gap_score = 1.0 if gaps[n] == float("inf") else gaps[n] / max_gap
-            score = (
-                0.38 * recent_norm
-                + 0.27 * long_norm
-                + self.coverage_repeat_weight * repeat
-                + (0.35 - self.coverage_repeat_weight) * gap_score
+            model_breadth = (
+                sum(n in reservoirs[k] for k in model_keys) / max(len(model_keys), 1)
             )
-            return (-score, -gaps[n] if gaps[n] != float("inf") else float("-inf"), n)
+            history_breadth = (
+                sum(n in reservoirs[k] for k in history_keys) / max(len(history_keys), 1)
+            )
+            utility = (
+                0.58 * normalized.get(n, 0.0)
+                + 0.27 * model_breadth
+                + 0.15 * history_breadth
+            )
+            return (-utility, -scores.get(n, 0.0), n)
 
-        return sorted((n for n in all_numbers if n not in excluded), key=key)
+        return sorted(pool, key=key)
 
     def _candidate_pool(self, target_date: date) -> tuple[list[int], list[int], list[int]]:
         if target_date in self._candidate_cache:
@@ -223,7 +266,8 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         core = ordered[:core_size]
         core_set = set(core)
 
-        # Reservoir candidates are selected only for the remaining satellite slots.
+        # The core is protected. Reservoir/disagreement candidates can only
+        # occupy the satellite slots left after the core is fixed.
         rescue_ranked = self._coverage_rank(target_date, core_set)
         rescue: list[int] = []
         if self.coverage_rescue_size > 0:
