@@ -182,6 +182,12 @@ def main() -> None:
         default=0.25,
         help="Discount repeated component-model evidence so consensus has diminishing returns",
     )
+    parser.add_argument(
+        "--anchor-ticket-count",
+        type=int,
+        default=3,
+        help="Model-led anchor tickets preserved before portfolio diversification",
+    )
     args = parser.parse_args()
 
     if args.tickets < 1:
@@ -196,6 +202,8 @@ def main() -> None:
         raise ValueError("--max-pair-reuse must be >= 1")
     if not 0.0 <= args.consensus_discount <= 1.0:
         raise ValueError("--consensus-discount must be between 0 and 1")
+    if not 0 <= args.anchor_ticket_count <= args.tickets:
+        raise ValueError("--anchor-ticket-count must be between 0 and --tickets")
 
     rows = load_complete_rows(Path(args.data))
     root = Path.cwd()
@@ -238,6 +246,7 @@ def main() -> None:
             max_pair_reuse=args.max_pair_reuse,
             decay_half_life_days=decay_half_life_days,
             consensus_discount=args.consensus_discount,
+            anchor_ticket_count=args.anchor_ticket_count,
         ),
         "UnseenPortfolioEnsemble": PortfolioEnsembleStrategy(
             df,
@@ -254,6 +263,7 @@ def main() -> None:
             pair_reuse_penalty=0.75,
             decay_half_life_days=decay_half_life_days,
             consensus_discount=args.consensus_discount,
+            anchor_ticket_count=args.anchor_ticket_count,
         ),
     }
 
@@ -302,6 +312,7 @@ def main() -> None:
             "max_number_usage": args.max_number_usage,
             "max_pair_reuse": args.max_pair_reuse,
             "consensus_discount": args.consensus_discount,
+            "anchor_ticket_count": args.anchor_ticket_count,
             "rank_ensemble_weights": {
                 "Bayesian": 0.35,
                 "ExponentialDecay": 0.35,
