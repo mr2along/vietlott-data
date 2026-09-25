@@ -522,9 +522,10 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         return tickets
 
     def _anchor_tickets(self, target_date: date, pool: list[int]) -> list[tuple[int, ...]]:
-        """Select model-led anchor tickets before portfolio diversification."""
+        """Select diverse model-led anchor tickets before portfolio diversification."""
         if self.anchor_ticket_count <= 0:
             return []
+
         pool_set = set(pool)
         scores = self._scores(target_date)
         ranked_scores = sorted(scores, key=lambda n: (-scores[n], n))
@@ -541,6 +542,8 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             pass
 
         anchors: list[tuple[int, ...]] = []
+        pair_usage: Counter = Counter()
+
         for source in sources:
             values: list[int] = []
             for number in source:
@@ -551,12 +554,25 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                     break
             if len(values) != self.number_predict:
                 continue
+
             ticket = tuple(sorted(values))
             if ticket in self.excluded_sets or ticket in anchors:
                 continue
+
+            if self.max_pair_reuse is not None and anchors:
+                if any(
+                    pair_usage[pair] + 1 > self.max_pair_reuse
+                    for pair in combinations(ticket, 2)
+                ):
+                    continue
+
             anchors.append(ticket)
+            for pair in combinations(ticket, 2):
+                pair_usage[pair] += 1
+
             if len(anchors) >= self.anchor_ticket_count:
                 break
+
         return anchors
 
     def _build_portfolio(self, target_date: date) -> list[list[int]]:
@@ -835,6 +851,8 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                 seen_current = {tuple(ticket) for ticket in tickets}
                 for over_pair, _count in violating:
                     for ticket_index, ticket_list in enumerate(tickets):
+                        if ticket_index < len(anchor_tickets):
+                            continue
                         ticket = tuple(sorted(ticket_list))
                         if not set(over_pair).issubset(ticket):
                             continue
