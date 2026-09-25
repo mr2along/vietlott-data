@@ -253,6 +253,32 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         model_keys = [k for k in reservoirs if k.startswith("model:")]
         history_keys = [k for k in reservoirs if not k.startswith("model:")]
 
+        model_strength_by_number: dict[int, list[float]] = {
+            number: [] for number in pool
+        }
+        for _, weight, model in self._components():
+            if weight <= 0 or not hasattr(model, "score_numbers"):
+                continue
+            raw = model.score_numbers(target_date)
+            ranked = sorted(
+                range(self.min_val, self.max_val + 1),
+                key=lambda number: (-float(raw.get(number, 0.0)), number),
+            )
+            denom = max(self.max_val - self.min_val, 1)
+            for rank_index, number in enumerate(ranked):
+                if number in model_strength_by_number:
+                    model_strength_by_number[number].append(
+                        (self.max_val - self.min_val - rank_index) / denom
+                    )
+
+        model_specificity_by_number: dict[int, float] = {}
+        for number, strengths in model_strength_by_number.items():
+            model_specificity_by_number[number] = (
+                max(strengths) - sum(strengths) / len(strengths)
+                if strengths
+                else 0.0
+            )
+
         def key(n: int) -> tuple[float, float, float, int]:
             model_breadth = (
                 sum(n in reservoirs[k] for k in model_keys) / max(len(model_keys), 1)
@@ -260,25 +286,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             history_breadth = (
                 sum(n in reservoirs[k] for k in history_keys) / max(len(history_keys), 1)
             )
-            model_strengths: list[float] = []
-            for _, weight, model in self._components():
-                if weight <= 0 or not hasattr(model, "score_numbers"):
-                    continue
-                raw = model.score_numbers(target_date)
-                ranked = sorted(
-                    range(self.min_val, self.max_val + 1),
-                    key=lambda number: (-float(raw.get(number, 0.0)), number),
-                )
-                rank_index = ranked.index(n)
-                model_strengths.append(
-                    (self.max_val - self.min_val - rank_index)
-                    / max(self.max_val - self.min_val, 1)
-                )
-            model_specificity = (
-                max(model_strengths) - sum(model_strengths) / len(model_strengths)
-                if model_strengths
-                else 0.0
-            )
+            model_specificity = model_specificity_by_number.get(n, 0.0)
             utility = (
                 0.52 * normalized.get(n, 0.0)
                 + 0.25 * model_specificity
