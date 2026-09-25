@@ -44,13 +44,17 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         ensemble_score_mode: str = "top6",
         exposure_power: float = 1.35,
         pair_reuse_penalty: float = 0.75,
+        max_pair_reuse: int | None = None,
         decay_half_life_days: int = 730,
+        consensus_discount: float = 0.25,
+        anchor_ticket_count: int = 0,
     ) -> None:
         super().__init__(
             df,
             time_predict=time_predict,
             weights=weights,
             decay_half_life_days=decay_half_life_days,
+            consensus_discount=consensus_discount,
         )
         if tickets_per_draw <= 0:
             raise ValueError("tickets_per_draw must be > 0")
@@ -83,6 +87,8 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             raise ValueError("exposure_power must be > 0")
         if pair_reuse_penalty < 0:
             raise ValueError("pair_reuse_penalty must be non-negative")
+        if max_pair_reuse is not None and int(max_pair_reuse) < 1:
+            raise ValueError("max_pair_reuse must be >= 1 or None")
 
         self.tickets_per_draw = int(tickets_per_draw)
         self.candidate_pool_size = int(candidate_pool_size)
@@ -105,17 +111,25 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         self.ensemble_score_mode = ensemble_score_mode
         self.exposure_power = float(exposure_power)
         self.pair_reuse_penalty = float(pair_reuse_penalty)
+        self.max_pair_reuse = (
+            int(max_pair_reuse) if max_pair_reuse is not None else None
+        )
+        if not 0 <= int(anchor_ticket_count) <= int(tickets_per_draw):
+            raise ValueError("anchor_ticket_count must be between 0 and tickets_per_draw")
+        self.anchor_ticket_count = int(anchor_ticket_count)
 
         self._candidate_cache: dict[date, tuple[list[int], list[int], list[int]]] = {}
         self._portfolio_cache: dict[date, list[list[int]]] = {}
         self._next_index: dict[date, int] = {}
 
     def _scores(self, target_date: date) -> dict[int, float]:
-        """Return a full 1..55 score map, using weighted rank evidence."""
+        """Return candidate scores with diminishing returns for repeated evidence."""
         if self.ensemble_score_mode == "top6":
             return super()._scores(target_date)
 
-        scores = {n: 0.0 for n in range(self.min_val, self.max_val + 1)}
+        contributions: dict[int, list[float]] = {
+            n: [] for n in range(self.min_val, self.max_val + 1)
+        }
         total_numbers = self.max_val - self.min_val + 1
         for _, weight, model in self._components():
             if weight <= 0:
@@ -130,8 +144,10 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                 key=lambda n: (-float(raw_scores.get(n, 0.0)), n),
             )
             for rank, number in enumerate(ranked):
-                scores[number] += float(weight) * (total_numbers - rank)
-        return scores
+                contributions[number].append(
+                    float(weight) * (total_numbers - rank)
+                )
+        return self._aggregate_contributions(contributions)
 
     def _valid_shape(self, ticket: tuple[int, ...]) -> bool:
         if self.max_consecutive_run is None:
@@ -241,19 +257,52 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         model_keys = [k for k in reservoirs if k.startswith("model:")]
         history_keys = [k for k in reservoirs if not k.startswith("model:")]
 
-        def key(n: int) -> tuple[float, float, int]:
+        model_strength_by_number: dict[int, list[float]] = {
+            number: [] for number in pool
+        }
+        for _, weight, model in self._components():
+            if weight <= 0 or not hasattr(model, "score_numbers"):
+                continue
+            raw = model.score_numbers(target_date)
+            ranked = sorted(
+                range(self.min_val, self.max_val + 1),
+                key=lambda number: (-float(raw.get(number, 0.0)), number),
+            )
+            denom = max(self.max_val - self.min_val, 1)
+            for rank_index, number in enumerate(ranked):
+                if number in model_strength_by_number:
+                    model_strength_by_number[number].append(
+                        (self.max_val - self.min_val - rank_index) / denom
+                    )
+
+        model_specificity_by_number: dict[int, float] = {}
+        for number, strengths in model_strength_by_number.items():
+            model_specificity_by_number[number] = (
+                max(strengths) - sum(strengths) / len(strengths)
+                if strengths
+                else 0.0
+            )
+
+        def key(n: int) -> tuple[float, float, float, int]:
             model_breadth = (
                 sum(n in reservoirs[k] for k in model_keys) / max(len(model_keys), 1)
             )
             history_breadth = (
                 sum(n in reservoirs[k] for k in history_keys) / max(len(history_keys), 1)
             )
+            model_specificity = model_specificity_by_number.get(n, 0.0)
             utility = (
-                0.58 * normalized.get(n, 0.0)
-                + 0.27 * model_breadth
+                0.52 * normalized.get(n, 0.0)
+                + 0.25 * model_specificity
+                + 0.08 * model_breadth
                 + 0.15 * history_breadth
             )
-            return (-utility, -scores.get(n, 0.0), n)
+            return (
+                -utility,
+                -model_specificity,
+                -scores.get(n, 0.0),
+                n,
+            )
 
         return sorted(pool, key=key)
 
@@ -472,6 +521,60 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
 
         return tickets
 
+    def _anchor_tickets(self, target_date: date, pool: list[int]) -> list[tuple[int, ...]]:
+        """Select diverse model-led anchor tickets before portfolio diversification."""
+        if self.anchor_ticket_count <= 0:
+            return []
+
+        pool_set = set(pool)
+        scores = self._scores(target_date)
+        ranked_scores = sorted(scores, key=lambda n: (-scores[n], n))
+        sources: list[list[int]] = [ranked_scores]
+
+        for _, weight, model in self._components():
+            if weight <= 0 or not hasattr(model, "predict"):
+                continue
+            sources.append([int(n) for n in model.predict(target_date)])
+
+        try:
+            sources.append(self._coverage_rank(target_date, set()))
+        except Exception:
+            pass
+
+        anchors: list[tuple[int, ...]] = []
+        pair_usage: Counter = Counter()
+
+        for source in sources:
+            values: list[int] = []
+            for number in source:
+                number = int(number)
+                if number in pool_set and number not in values:
+                    values.append(number)
+                if len(values) == self.number_predict:
+                    break
+            if len(values) != self.number_predict:
+                continue
+
+            ticket = tuple(sorted(values))
+            if ticket in self.excluded_sets or ticket in anchors:
+                continue
+
+            if self.max_pair_reuse is not None and anchors:
+                if any(
+                    pair_usage[pair] + 1 > self.max_pair_reuse
+                    for pair in combinations(ticket, 2)
+                ):
+                    continue
+
+            anchors.append(ticket)
+            for pair in combinations(ticket, 2):
+                pair_usage[pair] += 1
+
+            if len(anchors) >= self.anchor_ticket_count:
+                break
+
+        return anchors
+
     def _build_portfolio(self, target_date: date) -> list[list[int]]:
         scores = self._scores(target_date)
         pool, _, _ = self._candidate_pool(target_date)
@@ -482,6 +585,69 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         # score-first constructor.
         if self.max_number_usage is not None:
             return self._build_hard_cap_portfolio(pool, normalized)
+
+        # Production default: 30 candidates x 30 tickets. A cyclic balanced
+        # block design gives every candidate exactly six appearances while
+        # spreading pair reuse and avoiding the repeated five-block pattern that
+        # previously concentrated the strongest candidates together. We retain
+        # score information in candidate-pool selection and in the phase/order:
+        # the first block contains the highest-ranked candidates.
+        if (
+            self.max_pair_reuse is not None
+            and self.tickets_per_draw == 30
+            and len(pool) == 30
+            and self.anchor_ticket_count == 0
+        ):
+            pair_cap = self.max_pair_reuse
+            rng_seed = sum((index + 1) * number for index, number in enumerate(pool))
+            for attempt in range(2048):
+                rng = random.Random(rng_seed + attempt)
+                positions = list(range(30))
+                rng.shuffle(positions)
+
+                # Put the highest-ranked candidates in the first six positions
+                # so the first emitted ticket remains score-led.
+                position_order = [None] * 30
+                for pos, number in zip(range(6), pool[:6]):
+                    position_order[pos] = number
+                remainder_numbers = list(pool[6:])
+                rng.shuffle(remainder_numbers)
+                free_positions = positions
+                cursor = 0
+                for pos in free_positions:
+                    if position_order[pos] is None:
+                        position_order[pos] = remainder_numbers[cursor]
+                        cursor += 1
+
+                pattern = tuple(sorted(rng.sample(range(30), 6)))
+                blocks = [
+                    tuple(sorted(position_order[(start + offset) % 30] for offset in pattern))
+                    for start in range(30)
+                ]
+                if len(set(blocks)) != 30:
+                    continue
+                if any(not self._valid_shape(block) for block in blocks):
+                    continue
+                if any(block in self.excluded_sets for block in blocks):
+                    continue
+
+                pair_usage = Counter(
+                    pair
+                    for block in blocks
+                    for pair in combinations(block, 2)
+                )
+                if max(pair_usage.values(), default=0) > pair_cap:
+                    continue
+
+                exposure = Counter(number for block in blocks for number in block)
+                if any(exposure[number] != 6 for number in pool):
+                    continue
+
+                return [list(block) for block in blocks]
+
+            raise RuntimeError(
+                "unable to construct balanced 30-ticket portfolio within pair/shape constraints"
+            )
 
         # Score-powered exposure targets: strong candidates can appear more
         # than six times; the target is a soft preference, not a hard quota.
@@ -500,8 +666,19 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
 
         exposure = {n: 0 for n in pool}
         pair_usage: dict[tuple[int, int], int] = {}
-        tickets: list[list[int]] = []
-        seen: set[tuple[int, ...]] = set()
+        anchor_tickets = self._anchor_tickets(target_date, pool)
+        tickets: list[list[int]] = [list(ticket) for ticket in anchor_tickets]
+        seen: set[tuple[int, ...]] = set(anchor_tickets)
+        for ticket in anchor_tickets:
+            for number in ticket:
+                exposure[number] += 1
+            for pair in combinations(ticket, 2):
+                pair_usage[pair] = pair_usage.get(pair, 0) + 1
+
+        if self.max_number_usage is not None and any(
+            exposure[number] > self.max_number_usage for number in pool
+        ):
+            raise RuntimeError("anchor tickets exceed max_number_usage")
 
         def utility(number: int, chosen: list[int], ticket_idx: int) -> float:
             score = normalized.get(number, 0.0)
@@ -529,16 +706,40 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                     and exposure[number] >= self.max_number_usage
                 ):
                     continue
+                if (
+                    self.max_pair_reuse is not None
+                    and any(
+                        pair_usage.get(tuple(sorted((number, other))), 0)
+                        >= self.max_pair_reuse
+                        for other in chosen
+                    )
+                ):
+                    continue
                 trial = tuple(sorted(chosen + [number]))
                 if len(trial) == self.number_predict and not self._valid_shape(trial):
                     continue
                 candidates.append(number)
             return candidates
 
-        for ticket_idx in range(self.tickets_per_draw):
+        for ticket_idx in range(len(tickets), self.tickets_per_draw):
             chosen: list[int] = []
             for _slot in range(self.number_predict):
                 candidates = feasible_candidates(chosen, ticket_idx)
+                if not candidates:
+                    # Pair reuse is a diversity constraint, not a correctness
+                    # constraint. Near the end of a portfolio there can be no
+                    # candidate left under a strict pair ceiling; relax only
+                    # the ceiling for this slot rather than failing the forecast.
+                    candidates = [
+                        number for number in pool
+                        if number not in chosen
+                        and (
+                            len(chosen) + 1 < self.number_predict
+                            or self._valid_shape(
+                                tuple(sorted(chosen + [number]))
+                            )
+                        )
+                    ]
                 if not candidates:
                     raise RuntimeError("failed to find feasible portfolio candidate")
 
@@ -625,6 +826,131 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             raise RuntimeError("failed to build requested distinct portfolio")
         if self.max_number_usage is not None:
             assert max(exposure.values(), default=0) <= self.max_number_usage
+
+        # Repair any pair-cap violations introduced by the final fallback.
+        # A pair limit is a portfolio-diversity constraint, so repair is done
+        # after ticket generation while preserving ticket validity, exclusions,
+        # and number-cap constraints.
+        pair_cap = self.max_pair_reuse
+        if pair_cap is not None:
+            for _pass in range(len(tickets) * 3):
+                pair_usage = Counter(
+                    pair
+                    for ticket in tickets
+                    for pair in combinations(tuple(ticket), 2)
+                )
+                violating = sorted(
+                    (pair, count)
+                    for pair, count in pair_usage.items()
+                    if count > pair_cap
+                )
+                if not violating:
+                    break
+
+                repaired_any = False
+                seen_current = {tuple(ticket) for ticket in tickets}
+                for over_pair, _count in violating:
+                    for ticket_index, ticket_list in enumerate(tickets):
+                        if ticket_index < len(anchor_tickets):
+                            continue
+                        ticket = tuple(sorted(ticket_list))
+                        if not set(over_pair).issubset(ticket):
+                            continue
+
+                        # Prefer replacing the weaker endpoint, then fall back
+                        # to either endpoint if the first choice is infeasible.
+                        endpoints = sorted(
+                            over_pair,
+                            key=lambda n: (
+                                normalized.get(n, 0.0),
+                                -exposure.get(n, 0),
+                                n,
+                            ),
+                        )
+                        replacements = sorted(
+                            (n for n in pool if n not in ticket),
+                            key=lambda n: (
+                                -normalized.get(n, 0.0),
+                                -(
+                                    target_exposure[n] - exposure.get(n, 0)
+                                    if target_exposure.get(n, 0)
+                                    else 0.0
+                                ),
+                                n,
+                            ),
+                        )
+
+                        for old_number in endpoints:
+                            for replacement in replacements:
+                                if (
+                                    self.max_number_usage is not None
+                                    and exposure.get(replacement, 0)
+                                    >= self.max_number_usage
+                                ):
+                                    continue
+
+                                candidate_values = [
+                                    replacement if n == old_number else n
+                                    for n in ticket
+                                ]
+                                if len(set(candidate_values)) != self.number_predict:
+                                    continue
+                                candidate = tuple(sorted(candidate_values))
+                                if (
+                                    candidate in seen_current
+                                    and candidate != ticket
+                                ):
+                                    continue
+                                if candidate in self.excluded_sets:
+                                    continue
+                                if not self._valid_shape(candidate):
+                                    continue
+
+                                old_pairs = list(combinations(ticket, 2))
+                                new_pairs = list(combinations(candidate, 2))
+                                local_removed = Counter(old_pairs)
+                                local_added = Counter(new_pairs)
+                                violates = False
+                                for pair, added in local_added.items():
+                                    resulting = (
+                                        pair_usage.get(pair, 0)
+                                        - local_removed.get(pair, 0)
+                                        + added
+                                    )
+                                    if resulting > pair_cap:
+                                        violates = True
+                                        break
+                                if violates:
+                                    continue
+
+                                # Apply the replacement atomically.
+                                for pair in old_pairs:
+                                    pair_usage[pair] -= 1
+                                    if pair_usage[pair] <= 0:
+                                        del pair_usage[pair]
+                                for pair in new_pairs:
+                                    pair_usage[pair] += 1
+
+                                exposure[old_number] -= 1
+                                exposure[replacement] = exposure.get(replacement, 0) + 1
+                                tickets[ticket_index] = list(candidate)
+                                seen_current.discard(ticket)
+                                seen_current.add(candidate)
+                                repaired_any = True
+                                break
+                            if repaired_any:
+                                break
+                        if repaired_any:
+                            break
+                    if repaired_any:
+                        break
+
+                if not repaired_any:
+                    raise RuntimeError(
+                        "unable to repair portfolio repeated-pair violations"
+                    )
+            else:
+                raise RuntimeError("pair-reuse repair exceeded iteration limit")
 
         return tickets
 

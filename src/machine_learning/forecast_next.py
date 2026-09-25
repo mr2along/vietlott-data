@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections import Counter
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -59,6 +59,15 @@ def load_complete_rows(path: Path) -> list[dict]:
             "date": pd.Timestamp(row["date"]).date(),
             "result": result,
         }
+        existing = rows_by_id.get(draw_id)
+        if existing is not None and (
+            existing["date"] != normalized["date"]
+            or existing["result"] != normalized["result"]
+        ):
+            raise RuntimeError(
+                f"Conflicting duplicate Power 6/55 draw ID {draw_id}: "
+                f"{existing!r} vs {normalized!r}"
+            )
         rows_by_id[draw_id] = normalized
 
     rows = sorted(rows_by_id.values(), key=lambda r: (r["date"], r["id"]))
@@ -161,6 +170,24 @@ def main() -> None:
         default="full_rank",
         help="Ensemble scoring: legacy top-six Borda or full-number ranking",
     )
+    parser.add_argument(
+        "--max-pair-reuse",
+        type=int,
+        default=2,
+        help="Soft portfolio diversity ceiling for repeated number pairs",
+    )
+    parser.add_argument(
+        "--consensus-discount",
+        type=float,
+        default=0.25,
+        help="Discount repeated component-model evidence so consensus has diminishing returns",
+    )
+    parser.add_argument(
+        "--anchor-ticket-count",
+        type=int,
+        default=3,
+        help="Model-led anchor tickets preserved before portfolio diversification",
+    )
     args = parser.parse_args()
 
     if args.tickets < 1:
@@ -171,6 +198,12 @@ def main() -> None:
         raise ValueError("--candidate-pool-size must be >= 6")
     if not 0 <= args.coverage_rescue_size <= args.candidate_pool_size - 6:
         raise ValueError("--coverage-rescue-size must leave room for six-number tickets")
+    if args.max_pair_reuse < 1:
+        raise ValueError("--max-pair-reuse must be >= 1")
+    if not 0.0 <= args.consensus_discount <= 1.0:
+        raise ValueError("--consensus-discount must be between 0 and 1")
+    if not 0 <= args.anchor_ticket_count <= args.tickets:
+        raise ValueError("--anchor-ticket-count must be between 0 and --tickets")
 
     rows = load_complete_rows(Path(args.data))
     root = Path.cwd()
@@ -197,6 +230,7 @@ def main() -> None:
             df,
             time_predict=1,
             decay_half_life_days=decay_half_life_days,
+            consensus_discount=args.consensus_discount,
         ),
         "PortfolioEnsemble": PortfolioEnsembleStrategy(
             df,
@@ -209,7 +243,10 @@ def main() -> None:
             ensemble_score_mode=args.ensemble_score_mode,
             exposure_power=1.35,
             pair_reuse_penalty=0.75,
+            max_pair_reuse=args.max_pair_reuse,
             decay_half_life_days=decay_half_life_days,
+            consensus_discount=args.consensus_discount,
+            anchor_ticket_count=args.anchor_ticket_count,
         ),
         "UnseenPortfolioEnsemble": PortfolioEnsembleStrategy(
             df,
@@ -225,6 +262,8 @@ def main() -> None:
             exposure_power=1.35,
             pair_reuse_penalty=0.75,
             decay_half_life_days=decay_half_life_days,
+            consensus_discount=args.consensus_discount,
+            anchor_ticket_count=args.anchor_ticket_count,
         ),
     }
 
@@ -251,6 +290,8 @@ def main() -> None:
         },
         "target_draw_date": target.isoformat(),
         "target_draw_weekday": target.strftime("%A"),
+        "target_draw_id": f"{int(last['id']) + 1:05d}",
+        "forecast_generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "dataset_rows": len(rows),
         "predictions": predictions,
         "portfolio_stats": portfolio_stats(portfolio),
@@ -269,6 +310,9 @@ def main() -> None:
             "coverage_rescue_size": args.coverage_rescue_size,
             "ensemble_score_mode": args.ensemble_score_mode,
             "max_number_usage": args.max_number_usage,
+            "max_pair_reuse": args.max_pair_reuse,
+            "consensus_discount": args.consensus_discount,
+            "anchor_ticket_count": args.anchor_ticket_count,
             "rank_ensemble_weights": {
                 "Bayesian": 0.35,
                 "ExponentialDecay": 0.35,

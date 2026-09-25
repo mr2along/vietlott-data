@@ -16,6 +16,7 @@ concurrency:
 
 env:
   PYTHONPATH: src
+  PYTHONUNBUFFERED: "1"
 
 permissions:
   contents: read
@@ -23,7 +24,7 @@ permissions:
 jobs:
   backtest-v2:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - name: Print checkout identity

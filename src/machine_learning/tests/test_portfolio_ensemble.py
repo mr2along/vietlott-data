@@ -248,3 +248,54 @@ def test_soft_exposure_allows_strong_numbers_more_than_six_times():
     assert len(set(tickets)) == 30
     assert sum(usage.values()) == 180
     assert max(usage.values()) > 6
+
+
+def test_soft_portfolio_limits_repeated_pairs():
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=30,
+        ensemble_score_mode="full_rank",
+        pair_reuse_penalty=0.75,
+        max_pair_reuse=2,
+    )
+    tickets = [tuple(model.predict(date(2026, 1, 13))) for _ in range(30)]
+    from itertools import combinations
+
+    pair_usage = Counter(
+        pair
+        for ticket in tickets
+        for pair in combinations(ticket, 2)
+    )
+
+    assert len(tickets) == 30
+    assert len(set(tickets)) == 30
+    assert max(pair_usage.values(), default=0) <= 2
+
+def test_anchor_tickets_are_distinct_and_respect_pair_cap():
+    target = date(2026, 1, 13)
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=30,
+        max_pair_reuse=2,
+        anchor_ticket_count=3,
+        ensemble_score_mode="full_rank",
+    )
+    tickets = [tuple(model.predict(target)) for _ in range(30)]
+
+    assert len(tickets) == 30
+    assert len(set(tickets)) == 30
+    anchors = tickets[:model.anchor_ticket_count]
+    assert len(set(anchors)) == len(anchors)
+
+    from itertools import combinations
+
+    pair_usage = Counter(
+        pair
+        for ticket in tickets
+        for pair in combinations(ticket, 2)
+    )
+    assert max(pair_usage.values(), default=0) <= 2
