@@ -16,6 +16,7 @@ concurrency:
 
 env:
   PYTHONPATH: src
+  PYTHONUNBUFFERED: "1"
 
 permissions:
   contents: read
