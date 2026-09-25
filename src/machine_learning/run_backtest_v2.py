@@ -121,6 +121,8 @@ def main() -> None:
             ensemble_score_mode="full_rank",
             exposure_power=1.35,
             pair_reuse_penalty=0.75,
+            max_pair_reuse=2,
+            anchor_ticket_count=3,
         ),
         "UnseenSetGap": factory(UnseenSetGapStrategy, candidate_pool_size=18, max_attempts=200),
     }
