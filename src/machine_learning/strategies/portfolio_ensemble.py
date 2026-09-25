@@ -47,6 +47,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         max_pair_reuse: int | None = None,
         decay_half_life_days: int = 730,
         consensus_discount: float = 0.25,
+        anchor_ticket_count: int = 0,
     ) -> None:
         super().__init__(
             df,
@@ -113,6 +114,9 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         self.max_pair_reuse = (
             int(max_pair_reuse) if max_pair_reuse is not None else None
         )
+        if not 0 <= int(anchor_ticket_count) <= int(tickets_per_draw):
+            raise ValueError("anchor_ticket_count must be between 0 and tickets_per_draw")
+        self.anchor_ticket_count = int(anchor_ticket_count)
 
         self._candidate_cache: dict[date, tuple[list[int], list[int], list[int]]] = {}
         self._portfolio_cache: dict[date, list[list[int]]] = {}
@@ -517,6 +521,44 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
 
         return tickets
 
+    def _anchor_tickets(self, target_date: date, pool: list[int]) -> list[tuple[int, ...]]:
+        """Select model-led anchor tickets before portfolio diversification."""
+        if self.anchor_ticket_count <= 0:
+            return []
+        pool_set = set(pool)
+        scores = self._scores(target_date)
+        ranked_scores = sorted(scores, key=lambda n: (-scores[n], n))
+        sources: list[list[int]] = [ranked_scores]
+
+        for _, weight, model in self._components():
+            if weight <= 0 or not hasattr(model, "predict"):
+                continue
+            sources.append([int(n) for n in model.predict(target_date)])
+
+        try:
+            sources.append(self._coverage_rank(target_date, set()))
+        except Exception:
+            pass
+
+        anchors: list[tuple[int, ...]] = []
+        for source in sources:
+            values: list[int] = []
+            for number in source:
+                number = int(number)
+                if number in pool_set and number not in values:
+                    values.append(number)
+                if len(values) == self.number_predict:
+                    break
+            if len(values) != self.number_predict:
+                continue
+            ticket = tuple(sorted(values))
+            if ticket in self.excluded_sets or ticket in anchors:
+                continue
+            anchors.append(ticket)
+            if len(anchors) >= self.anchor_ticket_count:
+                break
+        return anchors
+
     def _build_portfolio(self, target_date: date) -> list[list[int]]:
         scores = self._scores(target_date)
         pool, _, _ = self._candidate_pool(target_date)
@@ -538,6 +580,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             self.max_pair_reuse is not None
             and self.tickets_per_draw == 30
             and len(pool) == 30
+            and self.anchor_ticket_count == 0
         ):
             pair_cap = self.max_pair_reuse
             rng_seed = sum((index + 1) * number for index, number in enumerate(pool))
@@ -607,8 +650,19 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
 
         exposure = {n: 0 for n in pool}
         pair_usage: dict[tuple[int, int], int] = {}
-        tickets: list[list[int]] = []
-        seen: set[tuple[int, ...]] = set()
+        anchor_tickets = self._anchor_tickets(target_date, pool)
+        tickets: list[list[int]] = [list(ticket) for ticket in anchor_tickets]
+        seen: set[tuple[int, ...]] = set(anchor_tickets)
+        for ticket in anchor_tickets:
+            for number in ticket:
+                exposure[number] += 1
+            for pair in combinations(ticket, 2):
+                pair_usage[pair] = pair_usage.get(pair, 0) + 1
+
+        if self.max_number_usage is not None and any(
+            exposure[number] > self.max_number_usage for number in pool
+        ):
+            raise RuntimeError("anchor tickets exceed max_number_usage")
 
         def utility(number: int, chosen: list[int], ticket_idx: int) -> float:
             score = normalized.get(number, 0.0)
@@ -651,7 +705,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                 candidates.append(number)
             return candidates
 
-        for ticket_idx in range(self.tickets_per_draw):
+        for ticket_idx in range(len(tickets), self.tickets_per_draw):
             chosen: list[int] = []
             for _slot in range(self.number_predict):
                 candidates = feasible_candidates(chosen, ticket_idx)
