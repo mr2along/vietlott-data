@@ -13,10 +13,13 @@ Prize defaults use the minimum values requested for research:
 This module is deliberately independent of the legacy backtest revenue
 logic so old results remain reproducible.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from typing import Iterable, Sequence
+from collections import Counter
+from collections.abc import Iterable, Sequence
+from dataclasses import asdict, dataclass
+from itertools import combinations
 
 
 @dataclass(frozen=True)
@@ -53,6 +56,13 @@ class BacktestSummary:
     p6_pct: float
     jackpot1_hits: int
     jackpot2_hits: int
+    draws_with_p3_plus_pct: float
+    duplicate_ticket_rate_pct: float
+    average_unique_numbers_per_draw: float
+    average_pairwise_overlap: float
+    maximum_pair_reuse: int
+    average_main_number_coverage_pct: float
+    max_matches_stdev: float
 
 
 def split_result(result: Sequence[int]) -> tuple[tuple[int, ...], int]:
@@ -69,7 +79,7 @@ def evaluate_ticket(ticket: Sequence[int], result: Sequence[int], prizes: PrizeC
     if len(ticket) != 6:
         raise ValueError(f"Ticket must contain 6 values, got {len(ticket)}")
     main, special = split_result(result)
-    ticket_set = set(int(x) for x in ticket)
+    ticket_set = {int(x) for x in ticket}
     main_matches = len(ticket_set.intersection(main))
     special_match = special in ticket_set
 
@@ -89,7 +99,12 @@ def evaluate_ticket(ticket: Sequence[int], result: Sequence[int], prizes: PrizeC
     return TicketResult(main_matches, special_match, prize)
 
 
-def summarize(strategy: str, results: Iterable[Sequence[int]], tickets_by_draw: Iterable[Iterable[Sequence[int]]], prizes: PrizeConfig | None = None) -> BacktestSummary:
+def summarize(
+    strategy: str,
+    results: Iterable[Sequence[int]],
+    tickets_by_draw: Iterable[Iterable[Sequence[int]]],
+    prizes: PrizeConfig | None = None,
+) -> BacktestSummary:
     """Aggregate a strategy's walk-forward tickets and calculate ROI/statistics."""
     prizes = prizes or PrizeConfig()
     total_draws = 0
@@ -98,9 +113,26 @@ def summarize(strategy: str, results: Iterable[Sequence[int]], tickets_by_draw: 
     match_sum = 0
     p3 = p4 = p5 = p6 = 0
     jp1 = jp2 = 0
+    p3_draws = duplicates = 0
+    unique_numbers = overlap_sum = overlap_pairs = covered = 0
+    max_pair_reuse = 0
+    draw_max_matches: list[int] = []
 
     for result, tickets in zip(results, tickets_by_draw):
+        tickets = [tuple(sorted(int(n) for n in ticket)) for ticket in tickets]
         total_draws += 1
+        if tickets:
+            p3_draws += max((len(set(t).intersection(result[:6])) for t in tickets), default=0) >= 3
+            duplicates += len(tickets) - len(set(tickets))
+            number_usage = Counter(n for t in tickets for n in t)
+            unique_numbers += len(number_usage)
+            pairs = Counter(pair for ticket in tickets for pair in combinations(ticket, 2))
+            max_pair_reuse = max(max_pair_reuse, max(pairs.values(), default=0))
+            overlaps = [len(set(a).intersection(b)) for i, a in enumerate(tickets) for b in tickets[i + 1 :]]
+            overlap_sum += sum(overlaps)
+            overlap_pairs += len(overlaps)
+            covered += len({n for ticket in tickets for n in ticket}.intersection(result[:6])) / 6
+            draw_max_matches.append(max(len(set(t).intersection(result[:6])) for t in tickets))
         for ticket in tickets:
             evaluated = evaluate_ticket(ticket, result, prizes)
             total_tickets += 1
@@ -131,6 +163,13 @@ def summarize(strategy: str, results: Iterable[Sequence[int]], tickets_by_draw: 
         p6_pct=(p6 / total_tickets * 100.0) if total_tickets else 0.0,
         jackpot1_hits=jp1,
         jackpot2_hits=jp2,
+        draws_with_p3_plus_pct=(p3_draws / total_draws * 100.0) if total_draws else 0.0,
+        duplicate_ticket_rate_pct=(duplicates / total_tickets * 100.0) if total_tickets else 0.0,
+        average_unique_numbers_per_draw=(unique_numbers / total_draws) if total_draws else 0.0,
+        average_pairwise_overlap=(overlap_sum / overlap_pairs) if overlap_pairs else 0.0,
+        maximum_pair_reuse=max_pair_reuse,
+        average_main_number_coverage_pct=(covered / total_draws * 100.0) if total_draws else 0.0,
+        max_matches_stdev=(__import__("statistics").pstdev(draw_max_matches) if draw_max_matches else 0.0),
     )
 
 

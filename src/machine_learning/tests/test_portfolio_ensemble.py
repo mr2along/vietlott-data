@@ -248,3 +248,111 @@ def test_soft_exposure_allows_strong_numbers_more_than_six_times():
     assert len(set(tickets)) == 30
     assert sum(usage.values()) == 180
     assert max(usage.values()) > 6
+
+
+def test_soft_portfolio_limits_repeated_pairs():
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=30,
+        ensemble_score_mode="full_rank",
+        pair_reuse_penalty=0.75,
+        max_pair_reuse=2,
+    )
+    tickets = [tuple(model.predict(date(2026, 1, 13))) for _ in range(30)]
+    from itertools import combinations
+
+    pair_usage = Counter(
+        pair
+        for ticket in tickets
+        for pair in combinations(ticket, 2)
+    )
+
+    assert len(tickets) == 30
+    assert len(set(tickets)) == 30
+    assert max(pair_usage.values(), default=0) <= 2
+
+
+def test_unseen_portfolio_can_enforce_pair_reuse_limit():
+    from itertools import combinations
+
+    target = date(2026, 1, 13)
+    seen_sets = {tuple(sorted(values[:6])) for values in _history()["result"]}
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=30,
+        ensemble_score_mode="full_rank",
+        max_pair_reuse=2,
+        excluded_sets=seen_sets,
+        max_consecutive_run=3,
+    )
+    tickets = [tuple(model.predict(target)) for _ in range(30)]
+    pair_usage = Counter(pair for ticket in tickets for pair in combinations(ticket, 2))
+
+    assert len(set(tickets)) == 30
+    assert max(pair_usage.values(), default=0) <= 2
+    assert not (set(tickets) & seen_sets)
+
+def test_anchor_tickets_are_distinct_and_respect_pair_cap():
+    target = date(2026, 1, 13)
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=30,
+        max_pair_reuse=2,
+        anchor_ticket_count=3,
+        ensemble_score_mode="full_rank",
+    )
+    tickets = [tuple(model.predict(target)) for _ in range(30)]
+
+    assert len(tickets) == 30
+    assert len(set(tickets)) == 30
+    anchors = tickets[:model.anchor_ticket_count]
+    assert len(set(anchors)) == len(anchors)
+
+    from itertools import combinations
+
+    pair_usage = Counter(
+        pair
+        for ticket in tickets
+        for pair in combinations(ticket, 2)
+    )
+    assert max(pair_usage.values(), default=0) <= 2
+
+
+def test_anchor_selection_uses_diversity_when_source_scores_are_close():
+    class StubModel:
+        def __init__(self, selected):
+            self.selected = selected
+
+        def predict(self, target_date):
+            return list(self.selected)
+
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        tickets_per_draw=30,
+        candidate_pool_size=30,
+        max_pair_reuse=2,
+        anchor_ticket_count=2,
+        ensemble_score_mode="full_rank",
+    )
+    scores = {number: 0.0 for number in range(1, 56)}
+    scores.update({number: 1.0 for number in range(1, 7)})
+    scores[7] = 0.9
+    scores.update({number: 0.88 for number in range(12, 18)})
+    model._scores = lambda target: scores
+    model._components = lambda: [
+        ("Bayesian", 1.0, StubModel([1, 2, 3, 4, 5, 7])),
+        ("ExponentialDecay", 1.0, StubModel([12, 13, 14, 15, 16, 17])),
+        ("LogisticProbability", 0.0, StubModel([])),
+    ]
+    model._coverage_rank = lambda target, selected: []
+
+    anchors = model._anchor_tickets(date(2026, 1, 13), list(range(1, 31)))
+
+    assert anchors[0] == (1, 2, 3, 4, 5, 6)
+    assert anchors[1] == (12, 13, 14, 15, 16, 17)

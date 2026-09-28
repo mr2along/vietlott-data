@@ -1,4 +1,5 @@
 """Run the corrected Power 6/55 benchmark and persist audit artifacts."""
+
 from __future__ import annotations
 
 import json
@@ -10,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from .backtest_v2 import PrizeConfig, evaluate_ticket, summarize
+from .ensemble_weight_selection import DEFAULT_WEIGHTS, select_regularized_weights
 from .strategies import (
     BayesianProbabilityStrategy,
     ExponentialDecayStrategy,
@@ -49,8 +51,12 @@ def load_rows(path: Path) -> list[dict[str, Any]]:
 
 
 def factory(cls, **kwargs):
-    def build(df, target_date):
-        return cls(df, time_predict=1, **kwargs)
+    def build(df, target_date, weights=None):
+        options = dict(kwargs)
+        if weights is not None and cls in {RankEnsembleStrategy, PortfolioEnsembleStrategy}:
+            options["weights"] = weights
+        return cls(df, time_predict=1, **options)
+
     return build
 
 
@@ -61,19 +67,48 @@ def run_strategy(name: str, rows: list[dict[str, Any]], make_strategy, seed: int
     results: list[list[int]] = []
     tickets_by_draw: list[list[list[int]]] = []
     per_draw: list[dict[str, Any]] = []
+    validation_hits = {name: [] for name in DEFAULT_WEIGHTS}
+    weights_by_draw: list[dict[str, float]] = []
+    validation_start = int(len(ordered) * 0.70)
+    locked_holdout_start = int(len(ordered) * 0.85)
     for index in range(min_history, len(ordered)):
         target = ordered[index]
-        # Instantiate from strictly prior draws for every target date. This
-        # prevents future rows from entering strategy initialization/caches and
-        # makes this benchmark match the dedicated walk-forward runner.
+        # Keep all holdout draws out of model fitting as well as weight updates.
+        # Development targets use expanding walk-forward history; every locked
+        # holdout target uses the same frozen pre-holdout history.
+        history_end = min(index, locked_holdout_start)
         history_df = pd.DataFrame(
-            [{"date": r["date"], "result": list(r["result"][:6])} for r in ordered[:index]]
+            [{"date": r["date"], "result": list(r["result"][:6])} for r in ordered[:history_end]]
         )
-        strategy = make_strategy(history_df, target["date"])
+        selected_weights = select_regularized_weights(validation_hits)
+        try:
+            strategy = make_strategy(history_df, target["date"], selected_weights)
+        except TypeError:
+            strategy = make_strategy(history_df, target["date"])
+        is_weight_validation = validation_start <= index < locked_holdout_start
+        if name in {"RankEnsemble", "PortfolioEnsemble"} and is_weight_validation:
+            component_models = {
+                "Bayesian": BayesianProbabilityStrategy(
+                    history_df, time_predict=1, prior_strength=20.0, half_life_days=180.0
+                ),
+                "ExponentialDecay": ExponentialDecayStrategy(
+                    history_df, time_predict=1, half_life_days=730, hot=True, selection_weight=1.0
+                ),
+                "LogisticProbability": LogisticProbabilityStrategy(history_df, time_predict=1),
+            }
+            component_predictions = {
+                model_name: set(model.predict(target["date"])) for model_name, model in component_models.items()
+            }
+        else:
+            component_predictions = None
         tickets = [list(map(int, strategy.predict(target["date"]))) for _ in range(PRIZES.tickets_per_draw)]
         target_result = list(target["result"])
         results.append(target_result)
         tickets_by_draw.append(tickets)
+        if component_predictions is not None:
+            for model_name, predicted in component_predictions.items():
+                validation_hits[model_name].append(len(predicted.intersection(target_result[:6])))
+            weights_by_draw.append({k: round(v, 6) for k, v in selected_weights.items()})
 
         evaluations = [evaluate_ticket(ticket, target_result, PRIZES) for ticket in tickets]
         gain = sum(x.prize for x in evaluations)
@@ -90,10 +125,20 @@ def run_strategy(name: str, rows: list[dict[str, Any]], make_strategy, seed: int
                 "max_main_matches": max(matches),
                 "average_main_matches": sum(matches) / len(matches),
                 "winning_tickets": sum(x.prize > 0 for x in evaluations),
+                "ensemble_weights": (
+                    {k: round(v, 6) for k, v in selected_weights.items()}
+                    if name in {"RankEnsemble", "PortfolioEnsemble"}
+                    else None
+                ),
             }
         )
 
-    return summarize(name, results, tickets_by_draw, PRIZES).__dict__, per_draw
+    summary = summarize(name, results, tickets_by_draw, PRIZES).__dict__
+    if weights_by_draw:
+        summary["average_ensemble_weights"] = {
+            key: sum(row[key] for row in weights_by_draw) / len(weights_by_draw) for key in DEFAULT_WEIGHTS
+        }
+    return summary, per_draw
 
 
 def main() -> None:
@@ -121,6 +166,8 @@ def main() -> None:
             ensemble_score_mode="full_rank",
             exposure_power=1.35,
             pair_reuse_penalty=0.75,
+            max_pair_reuse=2,
+            anchor_ticket_count=3,
         ),
         "UnseenSetGap": factory(UnseenSetGapStrategy, candidate_pool_size=18, max_attempts=200),
     }
@@ -129,7 +176,10 @@ def main() -> None:
     all_per_draw: list[dict[str, Any]] = []
     for name, make_strategy in factories.items():
         summary, details = run_strategy(
-            name, rows, make_strategy, seed=20260809,
+            name,
+            rows,
+            make_strategy,
+            seed=20260809,
             min_history=30 if name in {"LogisticProbability", "RankEnsemble", "PortfolioEnsemble"} else 1,
         )
         summaries.append(summary)
@@ -137,8 +187,12 @@ def main() -> None:
 
     output_dir = root / "artifacts" / "backtest_v2"
     output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "backtest_summary.json").write_text(json.dumps(summaries, indent=2, ensure_ascii=False), encoding="utf-8")
-    (output_dir / "backtest_per_draw.json").write_text(json.dumps(all_per_draw, indent=2, ensure_ascii=False), encoding="utf-8")
+    (output_dir / "backtest_summary.json").write_text(
+        json.dumps(summaries, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    (output_dir / "backtest_per_draw.json").write_text(
+        json.dumps(all_per_draw, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
     print(pd.DataFrame(summaries).to_string(index=False))
     print("\nPrize configuration:")
