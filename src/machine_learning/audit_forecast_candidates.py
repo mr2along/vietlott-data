@@ -50,7 +50,7 @@ def audit_candidate_coverage(
 
     for index, row in enumerate(targets, start=start):
         target_date = row["date"]
-        actual = set(int(x) for x in row["result"][:6])
+        actual = {int(x) for x in row["result"][:6]}
         history_df = pd.DataFrame(
             [{"date": prior["date"], "result": prior["result"][:6]} for prior in rows[:index]]
         )

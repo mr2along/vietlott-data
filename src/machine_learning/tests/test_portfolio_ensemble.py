@@ -322,3 +322,37 @@ def test_anchor_tickets_are_distinct_and_respect_pair_cap():
         for pair in combinations(ticket, 2)
     )
     assert max(pair_usage.values(), default=0) <= 2
+
+
+def test_anchor_selection_uses_diversity_when_source_scores_are_close():
+    class StubModel:
+        def __init__(self, selected):
+            self.selected = selected
+
+        def predict(self, target_date):
+            return list(self.selected)
+
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        tickets_per_draw=30,
+        candidate_pool_size=30,
+        max_pair_reuse=2,
+        anchor_ticket_count=2,
+        ensemble_score_mode="full_rank",
+    )
+    scores = {number: 0.0 for number in range(1, 56)}
+    scores.update({number: 1.0 for number in range(1, 7)})
+    scores[7] = 0.9
+    scores.update({number: 0.88 for number in range(12, 18)})
+    model._scores = lambda target: scores
+    model._components = lambda: [
+        ("Bayesian", 1.0, StubModel([1, 2, 3, 4, 5, 7])),
+        ("ExponentialDecay", 1.0, StubModel([12, 13, 14, 15, 16, 17])),
+        ("LogisticProbability", 0.0, StubModel([])),
+    ]
+    model._coverage_rank = lambda target, selected: []
+
+    anchors = model._anchor_tickets(date(2026, 1, 13), list(range(1, 31)))
+
+    assert anchors[0] == (1, 2, 3, 4, 5, 6)
+    assert anchors[1] == (12, 13, 14, 15, 16, 17)

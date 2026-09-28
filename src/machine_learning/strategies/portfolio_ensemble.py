@@ -541,9 +541,9 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         except Exception:
             pass
 
-        anchors: list[tuple[int, ...]] = []
-        pair_usage: Counter = Counter()
-
+        candidates: list[tuple[float, tuple[int, ...]]] = []
+        seen_candidates: set[tuple[int, ...]] = set()
+        normalized_scores = self._normalize(scores)
         for source in sources:
             values: list[int] = []
             for number in source:
@@ -556,22 +556,35 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                 continue
 
             ticket = tuple(sorted(values))
-            if ticket in self.excluded_sets or ticket in anchors:
+            if ticket in self.excluded_sets or ticket in seen_candidates:
                 continue
+            seen_candidates.add(ticket)
+            signal = sum(normalized_scores[number] for number in ticket) / self.number_predict
+            candidates.append((signal, ticket))
 
-            if self.max_pair_reuse is not None and anchors:
-                if any(
-                    pair_usage[pair] + 1 > self.max_pair_reuse
-                    for pair in combinations(ticket, 2)
+        anchors: list[tuple[int, ...]] = []
+        pair_usage: Counter = Counter()
+        used_numbers: set[int] = set()
+        while candidates and len(anchors) < self.anchor_ticket_count:
+            ranked: list[tuple[float, float, tuple[int, ...]]] = []
+            for signal, ticket in candidates:
+                ticket_pairs = tuple(combinations(ticket, 2))
+                if self.max_pair_reuse is not None and any(
+                    pair_usage[pair] + 1 > self.max_pair_reuse for pair in ticket_pairs
                 ):
                     continue
-
-            anchors.append(ticket)
-            for pair in combinations(ticket, 2):
-                pair_usage[pair] += 1
-
-            if len(anchors) >= self.anchor_ticket_count:
+                pair_novelty = sum(pair_usage[pair] == 0 for pair in ticket_pairs) / len(ticket_pairs)
+                number_novelty = len(set(ticket).difference(used_numbers)) / self.number_predict
+                utility = signal + 0.25 * pair_novelty + 0.15 * number_novelty
+                ranked.append((utility, signal, ticket))
+            if not ranked:
                 break
+            _, _, selected = max(ranked, key=lambda item: (item[0], item[1], item[2]))
+            anchors.append(selected)
+            used_numbers.update(selected)
+            for pair in combinations(selected, 2):
+                pair_usage[pair] += 1
+            candidates = [candidate for candidate in candidates if candidate[1] != selected]
 
         return anchors
 
