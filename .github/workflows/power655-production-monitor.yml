@@ -148,46 +148,8 @@ jobs:
           python -m src.machine_learning.normalize_power655
       - name: Evaluate stored forecasts
         run: python -m src.machine_learning.evaluate_forecast_results
-      - name: Publish result report
+      - name: Publish result report to GitHub Actions Summary
         run: cat artifacts/forecast/results/forecast_results.md >> "$GITHUB_STEP_SUMMARY"
-      - name: Check email configuration
-        id: email_config
-        env:
-          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-        run: |
-          if [ -n "$SMTP_USERNAME" ] && [ -n "$SMTP_PASSWORD" ] && [ -n "$SMTP_SERVER" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-            echo "SMTP email reporting is configured."
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "SMTP email reporting is not configured; skipping email."
-          fi
-      - name: Send result report by email
-        if: steps.email_config.outputs.enabled == 'true'
-        uses: dawidd6/action-send-mail@v6
-        with:
-          server_address: ${{ secrets.SMTP_SERVER }}
-          server_port: ${{ secrets.SMTP_PORT || 465 }}
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "Vietlott Power 6/55 - Forecast Result Report"
-          to: "Nhutminh50ctu@gmail.com"
-          from: ${{ secrets.SMTP_FROM || secrets.SMTP_USERNAME }}
-          secure: true
-          body: |
-            Power 6/55 Forecast Result Report
-
-            Repository: mr2along/vietlott-data
-
-            The detailed evaluation report is attached.
-          html_body: |
-            <h2>Power 6/55 Forecast Result Report</h2>
-            <p>Repository: <b>mr2along/vietlott-data</b></p>
-            <p>The detailed evaluation report is attached.</p>
-          attachments: artifacts/forecast/results/forecast_results.md,artifacts/forecast/results/forecast_results.json
       - name: Commit evaluation report
         run: |
           git config user.name "github-actions[bot]"
