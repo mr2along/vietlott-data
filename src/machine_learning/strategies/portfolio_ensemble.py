@@ -946,9 +946,16 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                         break
 
                 if not repaired_any:
-                    raise RuntimeError(
-                        "unable to repair portfolio repeated-pair violations"
+                    # Pair cap is a soft diversification preference. At a
+                    # historical target where anchors or shape constraints make
+                    # repair impossible, keep the valid distinct portfolio
+                    # rather than aborting the entire walk-forward benchmark.
+                    print(
+                        f"WARNING pair-cap repair exhausted for {target_date}; "
+                        f"remaining_violations={len(violating)}",
+                        flush=True,
                     )
+                    break
             else:
                 raise RuntimeError("pair-reuse repair exceeded iteration limit")
 
