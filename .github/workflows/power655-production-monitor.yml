@@ -75,16 +75,16 @@ jobs:
             --anchor-ticket-count 3
       - name: Archive forecast by target draw
         run: |
-          target_id="\$(python - <<'PY'
+          target_id="$(python - <<'PY'
           import json
           print(json.load(open("artifacts/forecast/next_power655.json", encoding="utf-8"))["target_draw_id"])
           PY
           )"
           mkdir -p artifacts/forecast/history
-          if [ -e "artifacts/forecast/history/forecast_\${target_id}.json" ]; then
-            echo "Forecast \${target_id} already archived; keeping original forecast."
+          if [ -e "artifacts/forecast/history/forecast_${target_id}.json" ]; then
+            echo "Forecast ${target_id} already archived; keeping original forecast."
           else
-            cp artifacts/forecast/next_power655.json "artifacts/forecast/history/forecast_\${target_id}.json"
+            cp artifacts/forecast/next_power655.json "artifacts/forecast/history/forecast_${target_id}.json"
           fi
       - name: Commit forecast archive
         run: |
