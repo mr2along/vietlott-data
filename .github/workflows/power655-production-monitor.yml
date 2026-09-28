@@ -2,7 +2,9 @@ name: Power 6/55 Production Forecast Monitor
 
 on:
   schedule:
-    - cron: "30 9 * * 2,4,6"
+    # 06:30 Asia/Ho_Chi_Minh == 23:30 UTC on the previous calendar day.
+    # Tue/Thu/Sat Vietnam therefore maps to Mon/Wed/Fri UTC.
+    - cron: "30 23 * * 1,3,5"
   workflow_run:
     workflows:
       - "Crawl Vietlott Data"
@@ -36,8 +38,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install test dependency
-        run: python -m pip install --upgrade pip pytest
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[ml]" pytest
       - name: Compile sources
         run: python -m compileall -q src
       - name: Test forecast evaluator
@@ -75,6 +79,24 @@ jobs:
             --ensemble-score-mode full_rank \
             --max-pair-reuse 2 \
             --anchor-ticket-count 3
+      - name: Publish forecast report
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          payload = json.load(open("artifacts/forecast/next_power655.json", encoding="utf-8"))
+          print("# Power 6/55 Forecast")
+          print("")
+          print(f"- Target draw: **#{payload['target_draw_id']}**")
+          print(f"- Target date: **{payload['target_draw_date']}** ({payload['target_draw_weekday']})")
+          print(f"- Generated (UTC): **{payload['forecast_generated_at_utc']}**")
+          print("")
+          for name in ("PortfolioEnsemble", "UnseenPortfolioEnsemble"):
+              print(f"## {name}")
+              print("")
+              for i, ticket in enumerate(payload["predictions"].get(name, []), start=1):
+                  print(f"{i}. `{ticket}`")
+              print("")
+          PY
       - name: Archive forecast by target draw
         run: |
           target_id="$(python - <<'PY'
@@ -125,6 +147,8 @@ jobs:
           python -m src.machine_learning.normalize_power655
       - name: Evaluate stored forecasts
         run: python -m src.machine_learning.evaluate_forecast_results
+      - name: Publish result report
+        run: cat artifacts/forecast/results/forecast_results.md >> "$GITHUB_STEP_SUMMARY"
       - name: Commit evaluation report
         run: |
           git config user.name "github-actions[bot]"
