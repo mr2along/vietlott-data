@@ -281,6 +281,7 @@ def main() -> None:
             max_number_usage=args.max_number_usage,
             excluded_sets=seen_sets,
             max_consecutive_run=3,
+            max_pair_reuse=args.max_pair_reuse,
             coverage_rescue_size=args.coverage_rescue_size,
             ensemble_score_mode=args.ensemble_score_mode,
             exposure_power=1.35,

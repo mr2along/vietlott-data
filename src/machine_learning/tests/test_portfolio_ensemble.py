@@ -273,6 +273,29 @@ def test_soft_portfolio_limits_repeated_pairs():
     assert len(set(tickets)) == 30
     assert max(pair_usage.values(), default=0) <= 2
 
+
+def test_unseen_portfolio_can_enforce_pair_reuse_limit():
+    from itertools import combinations
+
+    target = date(2026, 1, 13)
+    seen_sets = {tuple(sorted(values[:6])) for values in _history()["result"]}
+    model = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=30,
+        ensemble_score_mode="full_rank",
+        max_pair_reuse=2,
+        excluded_sets=seen_sets,
+        max_consecutive_run=3,
+    )
+    tickets = [tuple(model.predict(target)) for _ in range(30)]
+    pair_usage = Counter(pair for ticket in tickets for pair in combinations(ticket, 2))
+
+    assert len(set(tickets)) == 30
+    assert max(pair_usage.values(), default=0) <= 2
+    assert not (set(tickets) & seen_sets)
+
 def test_anchor_tickets_are_distinct_and_respect_pair_cap():
     target = date(2026, 1, 13)
     model = PortfolioEnsembleStrategy(
