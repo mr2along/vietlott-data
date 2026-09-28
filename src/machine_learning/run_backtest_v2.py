@@ -73,10 +73,13 @@ def run_strategy(name: str, rows: list[dict[str, Any]], make_strategy, seed: int
     locked_holdout_start = int(len(ordered) * 0.85)
     for index in range(min_history, len(ordered)):
         target = ordered[index]
-        # Instantiate from strictly prior draws for every target date. This
-        # prevents future rows from entering strategy initialization/caches and
-        # makes this benchmark match the dedicated walk-forward runner.
-        history_df = pd.DataFrame([{"date": r["date"], "result": list(r["result"][:6])} for r in ordered[:index]])
+        # Keep all holdout draws out of model fitting as well as weight updates.
+        # Development targets use expanding walk-forward history; every locked
+        # holdout target uses the same frozen pre-holdout history.
+        history_end = min(index, locked_holdout_start)
+        history_df = pd.DataFrame(
+            [{"date": r["date"], "result": list(r["result"][:6])} for r in ordered[:history_end]]
+        )
         selected_weights = select_regularized_weights(validation_hits)
         try:
             strategy = make_strategy(history_df, target["date"], selected_weights)
