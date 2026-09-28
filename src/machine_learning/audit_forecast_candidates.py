@@ -33,26 +33,12 @@ def audit_candidate_coverage(
     if len(rows) < 31:
         raise ValueError("need at least 31 complete rows for walk-forward audit")
 
-    df = pd.DataFrame(
-        [{"date": r["date"], "result": r["result"][:6]} for r in rows]
-    )
-    start = max(30, len(rows) - last_draws)
-    targets = rows[start:]
-
-    baseline = PortfolioEnsembleStrategy(
-        df,
-        tickets_per_draw=30,
-        candidate_pool_size=candidate_pool_size,
-        coverage_rescue_size=0,
-        ensemble_score_mode=ensemble_score_mode,
-    )
-    hybrid = PortfolioEnsembleStrategy(
-        df,
-        tickets_per_draw=30,
-        candidate_pool_size=candidate_pool_size,
-        coverage_rescue_size=coverage_rescue_size,
-        ensemble_score_mode=ensemble_score_mode,
-    )
+    validation_start = int(len(rows) * 0.70)
+    locked_holdout_start = int(len(rows) * 0.85)
+    start = max(validation_start, locked_holdout_start - last_draws)
+    if start >= locked_holdout_start:
+        raise ValueError("no validation draws are available before the locked holdout")
+    targets = rows[start:locked_holdout_start]
 
     baseline_hits = 0
     hybrid_hits = 0
@@ -62,9 +48,26 @@ def audit_candidate_coverage(
     total_numbers = 6 * len(targets)
     per_draw: list[dict[str, object]] = []
 
-    for row in targets:
+    for index, row in enumerate(targets, start=start):
         target_date = row["date"]
         actual = set(int(x) for x in row["result"][:6])
+        history_df = pd.DataFrame(
+            [{"date": prior["date"], "result": prior["result"][:6]} for prior in rows[:index]]
+        )
+        baseline = PortfolioEnsembleStrategy(
+            history_df,
+            tickets_per_draw=30,
+            candidate_pool_size=candidate_pool_size,
+            coverage_rescue_size=0,
+            ensemble_score_mode=ensemble_score_mode,
+        )
+        hybrid = PortfolioEnsembleStrategy(
+            history_df,
+            tickets_per_draw=30,
+            candidate_pool_size=candidate_pool_size,
+            coverage_rescue_size=coverage_rescue_size,
+            ensemble_score_mode=ensemble_score_mode,
+        )
 
         baseline_pool = set(baseline.candidate_pool_details(target_date)["pool"])
         hybrid_details = hybrid.candidate_pool_details(target_date)
@@ -95,6 +98,13 @@ def audit_candidate_coverage(
         "target_draws": len(targets),
         "target_first_id": targets[0]["id"],
         "target_last_id": targets[-1]["id"],
+        "validation_window": {
+            "start_index": start,
+            "end_index_exclusive": locked_holdout_start,
+            "locked_holdout_start_index": locked_holdout_start,
+            "locked_holdout_used": False,
+            "walk_forward_prior_rows_only": True,
+        },
         "candidate_pool_size": candidate_pool_size,
         "coverage_rescue_size": coverage_rescue_size,
         "ensemble_score_mode": ensemble_score_mode,
