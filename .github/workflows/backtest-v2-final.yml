@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - backtest-v2-final
+      - "forecast/fix-next-draw-*"
   pull_request:
     branches:
       - main

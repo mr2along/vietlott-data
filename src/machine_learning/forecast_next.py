@@ -4,18 +4,19 @@ This is a research/forecasting artifact. Lottery draws are random; the output
 is a model-generated candidate set, not a claim that future results are
 predictable.
 """
+
 from __future__ import annotations
 
 import argparse
 import json
 from collections import Counter
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
 
+from .ensemble_weight_selection import select_regularized_weights
 from .normalize_power655 import EXPECTED_HISTORICAL_INCOMPLETE_IDS
-
 from .strategies import (
     BayesianProbabilityStrategy,
     ExponentialDecayStrategy,
@@ -23,7 +24,6 @@ from .strategies import (
     PortfolioEnsembleStrategy,
     RankEnsembleStrategy,
 )
-
 
 DRAW_WEEKDAYS = {1, 3, 5}  # Tuesday, Thursday, Saturday
 
@@ -61,13 +61,9 @@ def load_complete_rows(path: Path) -> list[dict]:
         }
         existing = rows_by_id.get(draw_id)
         if existing is not None and (
-            existing["date"] != normalized["date"]
-            or existing["result"] != normalized["result"]
+            existing["date"] != normalized["date"] or existing["result"] != normalized["result"]
         ):
-            raise RuntimeError(
-                f"Conflicting duplicate Power 6/55 draw ID {draw_id}: "
-                f"{existing!r} vs {normalized!r}"
-            )
+            raise RuntimeError(f"Conflicting duplicate Power 6/55 draw ID {draw_id}: {existing!r} vs {normalized!r}")
         rows_by_id[draw_id] = normalized
 
     rows = sorted(rows_by_id.values(), key=lambda r: (r["date"], r["id"]))
@@ -101,9 +97,11 @@ def load_validated_decay_half_life(root: Path) -> int:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
         selected = int(payload["selected_half_life_days"])
-        if selected in {30, 60, 90, 120, 180, 270, 365, 540, 730}:
-            if payload.get("locked_holdout", {}).get("used_for_selection") is False:
-                return selected
+        if (
+            selected in {30, 60, 90, 120, 180, 270, 365, 540, 730}
+            and payload.get("locked_holdout", {}).get("used_for_selection") is False
+        ):
+            return selected
     except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError):
         pass
     return 730
@@ -119,10 +117,7 @@ def portfolio_stats(portfolio: list[list[int]]) -> dict[str, object]:
 
     pair_count = len(overlaps)
     average_overlap = sum(overlaps) / pair_count if pair_count else 0.0
-    histogram = {
-        str(k): overlaps.count(k)
-        for k in sorted(set(overlaps))
-    }
+    histogram = {str(k): overlaps.count(k) for k in sorted(set(overlaps))}
     return {
         "unique_numbers_used": len(usage),
         "number_usage": dict(sorted(usage.items())),
@@ -130,6 +125,19 @@ def portfolio_stats(portfolio: list[list[int]]) -> dict[str, object]:
         "min_number_usage": min(usage.values(), default=0),
         "average_pairwise_overlap": average_overlap,
         "pairwise_overlap_histogram": histogram,
+        "duplicate_ticket_count": len(portfolio) - len({tuple(sorted(t)) for t in portfolio}),
+        "pair_reuse_max": max(
+            Counter(
+                pair for ticket in portfolio for pair in __import__("itertools").combinations(sorted(ticket), 2)
+            ).values(),
+            default=0,
+        ),
+        "pair_reuse_over_cap_count": sum(
+            value > 2
+            for value in Counter(
+                pair for ticket in portfolio for pair in __import__("itertools").combinations(sorted(ticket), 2)
+            ).values()
+        ),
     }
 
 
@@ -210,18 +218,32 @@ def main() -> None:
     decay_half_life_days = load_validated_decay_half_life(root)
     last = rows[-1]
     target = next_draw_date(last["date"])
-    df = pd.DataFrame(
-        [{"date": r["date"], "result": r["result"][:6]} for r in rows]
-    )
-    seen_sets = {
-        tuple(sorted(int(x) for x in r["result"][:6]))
-        for r in rows
-    }
+    df = pd.DataFrame([{"date": r["date"], "result": r["result"][:6]} for r in rows])
+    # Forecast weighting uses walk-forward component outcomes from historical
+    # targets only. Each component prediction for draw t sees rows strictly < t.
+    validation_hits = {"Bayesian": [], "ExponentialDecay": [], "LogisticProbability": []}
+
+    validation_start = max(30, int(len(rows) * 0.70))
+    locked_holdout_start = int(len(rows) * 0.85)
+    for index in range(validation_start, locked_holdout_start):
+        validation_history = pd.DataFrame([{"date": r["date"], "result": r["result"][:6]} for r in rows[:index]])
+        validation_target = rows[index]
+        for key, cls, kwargs in (
+            ("Bayesian", BayesianProbabilityStrategy, {"prior_strength": 20.0, "half_life_days": 180.0}),
+            (
+                "ExponentialDecay",
+                ExponentialDecayStrategy,
+                {"half_life_days": decay_half_life_days, "hot": True, "selection_weight": 1.0},
+            ),
+            ("LogisticProbability", LogisticProbabilityStrategy, {}),
+        ):
+            prediction = cls(validation_history, time_predict=1, **kwargs).predict(validation_target["date"])
+            validation_hits[key].append(len(set(prediction).intersection(validation_target["result"][:6])))
+    adaptive_weights = select_regularized_weights(validation_hits)
+    seen_sets = {tuple(sorted(int(x) for x in r["result"][:6])) for r in rows}
 
     models = {
-        "Bayesian": BayesianProbabilityStrategy(
-            df, time_predict=1, prior_strength=20.0, half_life_days=180.0
-        ),
+        "Bayesian": BayesianProbabilityStrategy(df, time_predict=1, prior_strength=20.0, half_life_days=180.0),
         "ExponentialDecay": ExponentialDecayStrategy(
             df, time_predict=1, half_life_days=decay_half_life_days, hot=True, selection_weight=1.0
         ),
@@ -231,6 +253,7 @@ def main() -> None:
             time_predict=1,
             decay_half_life_days=decay_half_life_days,
             consensus_discount=args.consensus_discount,
+            weights=adaptive_weights,
         ),
         "PortfolioEnsemble": PortfolioEnsembleStrategy(
             df,
@@ -246,6 +269,7 @@ def main() -> None:
             max_pair_reuse=args.max_pair_reuse,
             decay_half_life_days=decay_half_life_days,
             consensus_discount=args.consensus_discount,
+            weights=adaptive_weights,
             anchor_ticket_count=args.anchor_ticket_count,
         ),
         "UnseenPortfolioEnsemble": PortfolioEnsembleStrategy(
@@ -263,6 +287,7 @@ def main() -> None:
             pair_reuse_penalty=0.75,
             decay_half_life_days=decay_half_life_days,
             consensus_discount=args.consensus_discount,
+            weights=adaptive_weights,
             anchor_ticket_count=args.anchor_ticket_count,
         ),
     }
@@ -291,7 +316,7 @@ def main() -> None:
         "target_draw_date": target.isoformat(),
         "target_draw_weekday": target.strftime("%A"),
         "target_draw_id": f"{int(last['id']) + 1:05d}",
-        "forecast_generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "forecast_generated_at_utc": datetime.now(UTC).isoformat(),
         "dataset_rows": len(rows),
         "predictions": predictions,
         "portfolio_stats": portfolio_stats(portfolio),
@@ -314,9 +339,15 @@ def main() -> None:
             "consensus_discount": args.consensus_discount,
             "anchor_ticket_count": args.anchor_ticket_count,
             "rank_ensemble_weights": {
-                "Bayesian": 0.35,
-                "ExponentialDecay": 0.35,
-                "LogisticProbability": 0.30,
+                **adaptive_weights,
+            },
+            "weight_selection": {
+                "method": "regularized_walk_forward_oos_hits",
+                "validation_draws": len(validation_hits["Bayesian"]),
+                "validation_split": "70%-85% chronological data",
+                "locked_holdout_used": False,
+                "regularization_draws": 60,
+                "max_weight_deviation": 0.08,
             },
         },
         "note": "Model forecast for research; historical backtest does not establish future lottery predictability.",

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "forecast/next-power655-*"
+      - "forecast/fix-next-draw-*"
   workflow_run:
     workflows:
       - "Crawl Vietlott Data"
