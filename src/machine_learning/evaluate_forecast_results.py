@@ -2,7 +2,6 @@
 from __future__ import annotations
 import json
 from pathlib import Path
-from typing import Any
 
 PRIZES = {"jackpot1": 30_000_000_000, "jackpot2": 3_000_000_000, "first": 40_000_000, "second": 500_000, "third": 50_000}
 TICKET_PRICE = 10_000
