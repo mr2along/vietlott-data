@@ -9,6 +9,9 @@ on:
     types:
       - completed
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
 
 concurrency:
   group: power655-production-${{ github.event_name }}
@@ -22,6 +25,21 @@ env:
   PYTHONUNBUFFERED: "1"
 
 jobs:
+  validate:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile sources
+        run: python -m compileall -q src
+      - name: Test forecast evaluator
+        run: python -m pytest src/machine_learning/tests/test_evaluate_forecast_results.py -q
   forecast:
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
