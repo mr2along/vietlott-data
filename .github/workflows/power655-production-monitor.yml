@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: power655-production-\${{ github.event_name }}
+  group: power655-production-${{ github.event_name }}
   cancel-in-progress: false
 
 permissions:
@@ -23,7 +23,7 @@ env:
 
 jobs:
   forecast:
-    if: \${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -84,7 +84,7 @@ jobs:
           if-no-files-found: error
 
   evaluate:
-    if: \${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
