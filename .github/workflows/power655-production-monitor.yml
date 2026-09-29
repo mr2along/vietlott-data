@@ -2,8 +2,9 @@ name: Power 6/55 Production Forecast Monitor
 
 on:
   schedule:
-    # Forecast: 16:30 Asia/Ho_Chi_Minh on Tue/Thu/Sat.
-    - cron: "30 9 * * 2,4,6"
+    # Forecast: 06:30 Asia/Ho_Chi_Minh on Tue/Thu/Sat.
+    # This gives several hours before the 08:00 ticket-purchase target.
+    - cron: "30 23 * * 1,3,5"
     # Evaluation: 19:15 Asia/Ho_Chi_Minh on Tue/Thu/Sat.
     - cron: "15 12 * * 2,4,6"
   workflow_dispatch:
@@ -53,7 +54,7 @@ jobs:
         run: python -m pytest src/machine_learning/tests/test_evaluate_forecast_results.py -q
 
   forecast:
-    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '30 9 * * 2,4,6') || (github.event_name == 'workflow_dispatch' && github.event.inputs.task == 'forecast') }}
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '30 23 * * 1,3,5') || (github.event_name == 'workflow_dispatch' && github.event.inputs.task == 'forecast') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
