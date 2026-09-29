@@ -2,14 +2,10 @@ name: Backtest V2 Final
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-      - backtest-v2-final
-      - "forecast/fix-next-draw-*"
-  pull_request:
-    branches:
-      - main
+  schedule:
+    # Full historical benchmark is intentionally not part of normal push/PR CI.
+    # Run weekly at 02:00 UTC (09:00 Asia/Ho_Chi_Minh) on Sunday.
+    - cron: "0 2 * * 0"
 
 concurrency:
   group: backtest-v2-${{ github.ref }}
