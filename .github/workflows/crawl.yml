@@ -3,7 +3,7 @@ name: Crawl Vietlott Data
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30 18 * * *"
+    - cron: "45 22 * * *"
 
 permissions:
   contents: write
