@@ -55,14 +55,26 @@ jobs:
           assert latest["result"][6] not in latest["result"][:6], latest
           print("POWER655_FRESH_OK", latest)
           PY
-      - name: Crawl remaining products
+      - name: Crawl remaining products (non-blocking)
+        continue-on-error: true
         run: |
-          vietlott-crawl power_645 --index-from 0 --index-to 1
-          vietlott-crawl power_535 --index-from 0 --index-to 1
-          vietlott-crawl 3d --index-from 0 --index-to 1
-          vietlott-crawl 3d_pro --index-from 0 --index-to 1
-          vietlott-crawl bingo18 --index-from 0 --index-to 1
-          vietlott-crawl keno --index-from 0 --index-to 24
+          set +e
+          for product_args in \
+            "power_645 --index-from 0 --index-to 1" \
+            "power_535 --index-from 0 --index-to 1" \
+            "3d --index-from 0 --index-to 1" \
+            "3d_pro --index-from 0 --index-to 1" \
+            "bingo18 --index-from 0 --index-to 1" \
+            "keno --index-from 0 --index-to 24"
+          do
+            echo "=== Crawling $product_args ==="
+            vietlott-crawl $product_args
+            rc=$?
+            if [ $rc -ne 0 ]; then
+              echo "::warning::Optional product crawl failed (exit $rc): $product_args"
+            fi
+          done
+          echo "Power 6/55 pipeline remains authoritative; optional product failures do not block downstream Power 6/55 evaluation."
       - name: Regenerate documentation
         run: |
           python src/render_readme.py
