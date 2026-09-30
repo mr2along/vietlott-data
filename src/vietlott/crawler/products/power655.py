@@ -130,7 +130,40 @@ class ProductPower655(BaseProduct):
         if not rows:
             raise RuntimeError("Power 6/55 fallback returned no validated draws")
 
-        logger.info(f"fallback parsed {len(rows)} unique Power 6/55 draws, latest={rows[-1]['id']}")
+        # Daily refresh is incremental: only persist the next draw after the
+        # current maximum ID. Historical gaps are handled separately by
+        # vietlott-missing and therefore stay out of the daily crawl.
+        if index_from == 0:
+            import polars as pl
+
+            current_max_id = 0
+            if self.product_config.raw_path.exists():
+                current = pl.read_ndjson(
+                    self.product_config.raw_path, infer_schema_length=None
+                ).with_columns(pl.col("id").cast(pl.Utf8))
+                if len(current):
+                    current_max_id = max(int(value) for value in current["id"].to_list())
+
+            new_rows = [row for row in rows if int(row["id"]) > current_max_id]
+            if not new_rows:
+                logger.info(
+                    f"Power 6/55 already up to date at #{current_max_id:05d}; "
+                    "no new draw to store."
+                )
+                return True
+
+            # If the source exposes several unseen draws, persist only the
+            # earliest next draw. The following run will pick up the next one.
+            next_id = min(int(row["id"]) for row in new_rows)
+            rows = [row for row in new_rows if int(row["id"]) == next_id]
+            logger.info(
+                f"incremental Power 6/55 crawl: current=#{current_max_id:05d}, "
+                f"next=#{next_id:05d}"
+            )
+
+        logger.info(
+            f"fallback selected {len(rows)} draw(s), latest={rows[-1]['id']}"
+        )
         self._store_fallback_rows(rows)
         return True
 
