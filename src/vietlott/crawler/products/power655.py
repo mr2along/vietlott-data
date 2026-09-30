@@ -40,10 +40,6 @@ class ProductPower655(BaseProduct):
         "https://www.minhngoc.net.vn/ket-qua-xo-so/dien-toan-vietlott/"
         "power-6x55/{date}.html"
     )
-    FALLBACK_CORRECTION_URL = (
-        "https://www.minhngoc.net.vn/ket-qua-xo-so/dien-toan-vietlott/"
-        "power-6x55/thu-bay.html"
-    )
     # Minh Ngoc's date pages expose roughly 10 Power 6/55 draws. The first
     # historical page needed after the current page is anchored about 18 days
     # before the run date; each subsequent page advances by about 23 days.
@@ -169,37 +165,6 @@ class ProductPower655(BaseProduct):
                 f"incremental Power 6/55 crawl: current=#{current_max_id:05d}, "
                 f"next=#{next_id:05d}"
             )
-
-        # Always refresh the known-bad historical draw as an explicit
-        # correction, even though its ID is below the current maximum.
-        if index_from == 0:
-            # Use the stable Saturday archive page that is verified to
-            # contain draw #01394, rather than guessing a date-page URL.
-            correction_url = self.FALLBACK_CORRECTION_URL
-            res = requests.get(
-                correction_url,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; vietlott-data/0.2)"},
-                timeout=15,
-            )
-            res.raise_for_status()
-            correction_text = BeautifulSoup(
-                res.text, "lxml"
-            ).get_text(" ", strip=True)
-            correction_rows = [
-                row
-                for row in self._parse_fallback_text(correction_text)
-                if row["id"] == self.KNOWN_CORRECTION_ID
-            ]
-            if len(correction_rows) != 1:
-                raise RuntimeError(
-                    f"expected exactly one validated correction row "
-                    f"#{self.KNOWN_CORRECTION_ID}, found {len(correction_rows)}"
-                )
-            logger.info(
-                f"refreshing known correction #{self.KNOWN_CORRECTION_ID} "
-                f"from {correction_url}"
-            )
-            rows.extend(correction_rows)
 
         rows = list({row["id"]: row for row in rows}.values())
         rows.sort(key=lambda row: (row["date"], row["id"]))
