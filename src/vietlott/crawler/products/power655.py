@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List
 
 from bs4 import BeautifulSoup
@@ -36,29 +36,26 @@ class ProductPower655(BaseProduct):
         super(ProductPower655, self).__init__()
 
     FALLBACK_URL = "https://www.minhngoc.net/ket-qua-xo-so/dien-toan-vietlott/power-6x55.html"
+    FALLBACK_DATE_URL = (
+        "https://www.minhngoc.net.vn/ket-qua-xo-so/dien-toan-vietlott/"
+        "power-6x55/{date}.html"
+    )
+    # Minh Ngoc's date pages expose roughly 10 Power 6/55 draws. The first
+    # historical page needed after the current page is anchored about 18 days
+    # before the run date; each subsequent page advances by about 23 days.
+    FALLBACK_PAGE_ANCHOR_DAYS = 18
+    FALLBACK_PAGE_SPAN_DAYS = 23
 
-    def crawl_fallback(self, run_date_str: str, index_from: int, index_to: int) -> bool:
-        """Use a validated public HTML mirror for daily refresh when Vietlott returns HTTP 403/429."""
-        if index_from != 0:
-            raise RuntimeError("Power 6/55 fallback supports only index_from=0")
-        logger.warning(f"using Power 6/55 fallback source: {self.FALLBACK_URL}")
-        res = requests.get(
-            self.FALLBACK_URL,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; vietlott-data/0.2)"},
-            timeout=15,
-        )
-        res.raise_for_status()
-        text = BeautifulSoup(res.text, "lxml").get_text(" ", strip=True)
+    _FALLBACK_PATTERN = re.compile(
+        r"KẾT QUẢ XỔ SỐ POWER 6/55\\s*-\\s*NGÀY:\\s*(\\d{2}/\\d{2}/\\d{4}).*?"
+        r"Kỳ vé:\\s*#?(\\d{5}).*?"
+        r"Ngày quay thưởng\\s*(\\d{2}/\\d{2}/\\d{4})\\s*(.*?)Giải thưởng",
+        re.IGNORECASE,
+    )
 
-        pattern = re.compile(
-            r"KẾT QUẢ XỔ SỐ POWER 6/55\s*-\s*NGÀY:\s*(\d{2}/\d{2}/\d{4}).*?"
-            r"Kỳ vé:\s*#?(\d{5}).*?"
-            r"Ngày quay thưởng\s*(\d{2}/\d{2}/\d{4})\s*(.*?)Giải thưởng",
-            re.IGNORECASE,
-        )
-
+    def _parse_fallback_text(self, text: str) -> List[Dict]:
         rows: List[Dict] = []
-        for match in pattern.finditer(text):
+        for match in self._FALLBACK_PATTERN.finditer(text):
             date_str, draw_id, draw_date_str, body = match.groups()
             if date_str != draw_date_str:
                 logger.warning(
@@ -67,7 +64,7 @@ class ProductPower655(BaseProduct):
                 )
                 continue
 
-            numbers = [int(x) for x in re.findall(r"(?<!\d)(\d{1,2})(?!\d)", body)]
+            numbers = [int(x) for x in re.findall(r"(?<!\\d)(\\d{1,2})(?!\\d)", body)]
             if len(numbers) < 7:
                 continue
             result = numbers[:7]
@@ -87,13 +84,53 @@ class ProductPower655(BaseProduct):
                     "source": self.FALLBACK_URL,
                 }
             )
+        return rows
+
+    def _fallback_page_urls(
+        self, run_date_str: str, index_from: int, index_to: int
+    ) -> List[str]:
+        if index_from == 0 and index_to <= 1:
+            return [self.FALLBACK_URL]
+
+        base_date = datetime.strptime(run_date_str, "%Y-%m-%d").date()
+        urls: List[str] = []
+        for page_index in range(index_from, index_to):
+            if page_index == 0:
+                urls.append(self.FALLBACK_URL)
+                continue
+            offset = self.FALLBACK_PAGE_ANCHOR_DAYS + (
+                (page_index - 1) * self.FALLBACK_PAGE_SPAN_DAYS
+            )
+            anchor = base_date - timedelta(days=offset)
+            urls.append(self.FALLBACK_DATE_URL.format(date=anchor.strftime("%d-%m-%Y")))
+        return urls
+
+    def crawl_fallback(self, run_date_str: str, index_from: int, index_to: int) -> bool:
+        """Use validated public HTML mirror for daily refresh and historical backfill."""
+        urls = self._fallback_page_urls(run_date_str, index_from, index_to)
+        logger.warning(
+            "using Power 6/55 fallback source(s): " + ", ".join(urls)
+        )
+
+        rows: List[Dict] = []
+        for url in urls:
+            res = requests.get(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; vietlott-data/0.2)"},
+                timeout=15,
+            )
+            res.raise_for_status()
+            text = BeautifulSoup(res.text, "lxml").get_text(" ", strip=True)
+            page_rows = self._parse_fallback_text(text)
+            logger.info(f"fallback parsed {len(page_rows)} Power 6/55 draws from {url}")
+            rows.extend(page_rows)
 
         rows = list({row["id"]: row for row in rows}.values())
         rows.sort(key=lambda row: (row["date"], row["id"]))
         if not rows:
             raise RuntimeError("Power 6/55 fallback returned no validated draws")
 
-        logger.info(f"fallback parsed {len(rows)} Power 6/55 draws, latest={rows[-1]['id']}")
+        logger.info(f"fallback parsed {len(rows)} unique Power 6/55 draws, latest={rows[-1]['id']}")
         self._store_fallback_rows(rows)
         return True
 
