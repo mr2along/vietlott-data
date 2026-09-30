@@ -22,7 +22,7 @@ on:
       - main
 
 concurrency:
-  group: power655-production-${{ github.event_name }}
+  group: power655-main-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -69,12 +69,57 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[ml]"
           pip install pandas numpy scikit-learn
-      - name: Refresh Power 6/55 data
+      - name: Refresh Power 6/55 data incrementally
         run: |
-          vietlott-crawl power_655 --index-from 0 --index-to 1
+          set -euo pipefail
+          max_attempts=20
+          for attempt in $(seq 1 "$max_attempts"); do
+            before="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("data/power655.jsonl")
+          rows = [json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
+          print(max((int(r["id"]) for r in rows), default=0))
+          PY
+          )"
+            vietlott-crawl power_655 --index-from 0 --index-to 1
+            after="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("data/power655.jsonl")
+          rows = [json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
+          print(max((int(r["id"]) for r in rows), default=0))
+          PY
+          )"
+            echo "incremental catch-up attempt ${attempt}: ${before} -> ${after}"
+            if [ "$after" -le "$before" ]; then
+              break
+            fi
+            if [ "${attempt}" -eq "${max_attempts}" ]; then
+              echo "::error::Power 6/55 did not finish incremental catch-up after ${max_attempts} draws."
+              exit 1
+            fi
+          done
           vietlott-missing power_655 --limit 20
       - name: Normalize history
         run: python -m src.machine_learning.normalize_power655
+      - name: Validate Power 6/55 freshness
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import date, timedelta, datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          rows = [json.loads(line) for line in Path("data/power655.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+          assert rows, "Power 6/55 data is empty"
+          latest = max(rows, key=lambda row: (row["date"], row["id"]))
+          today = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).date()
+          latest_date = date.fromisoformat(str(latest["date"]))
+          assert latest_date <= today, latest
+          assert latest_date >= today - timedelta(days=4), latest
+          print("POWER655_FRESH_OK", latest)
+          PY
       - name: Validate decay
         run: python -m src.machine_learning.run_decay_validation
       - name: Generate 30-ticket forecast
@@ -147,11 +192,56 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-      - name: Refresh and normalize result data
+      - name: Refresh and normalize result data incrementally
         run: |
-          vietlott-crawl power_655 --index-from 0 --index-to 1
+          set -euo pipefail
+          max_attempts=20
+          for attempt in $(seq 1 "$max_attempts"); do
+            before="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("data/power655.jsonl")
+          rows = [json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
+          print(max((int(r["id"]) for r in rows), default=0))
+          PY
+          )"
+            vietlott-crawl power_655 --index-from 0 --index-to 1
+            after="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("data/power655.jsonl")
+          rows = [json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
+          print(max((int(r["id"]) for r in rows), default=0))
+          PY
+          )"
+            echo "incremental catch-up attempt ${attempt}: ${before} -> ${after}"
+            if [ "$after" -le "$before" ]; then
+              break
+            fi
+            if [ "${attempt}" -eq "${max_attempts}" ]; then
+              echo "::error::Power 6/55 did not finish incremental catch-up after ${max_attempts} draws."
+              exit 1
+            fi
+          done
           vietlott-missing power_655 --limit 20
           python -m src.machine_learning.normalize_power655
+      - name: Validate Power 6/55 freshness
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import date, timedelta, datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          rows = [json.loads(line) for line in Path("data/power655.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+          assert rows, "Power 6/55 data is empty"
+          latest = max(rows, key=lambda row: (row["date"], row["id"]))
+          today = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).date()
+          latest_date = date.fromisoformat(str(latest["date"]))
+          assert latest_date <= today, latest
+          assert latest_date >= today - timedelta(days=4), latest
+          print("POWER655_FRESH_OK", latest)
+          PY
       - name: Evaluate stored forecasts
         run: python -m src.machine_learning.evaluate_forecast_results
       - name: Publish result report to GitHub Actions Summary
