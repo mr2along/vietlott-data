@@ -85,7 +85,6 @@ class ProductPower655(BaseProduct):
                     "id": draw_id,
                     "result": result,
                     "process_time": datetime.now().isoformat(),
-                    "source": self.FALLBACK_URL,
                 }
             )
         return rows
