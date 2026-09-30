@@ -45,16 +45,15 @@ class ProductPower655(BaseProduct):
     # before the run date; each subsequent page advances by about 23 days.
     FALLBACK_PAGE_ANCHOR_DAYS = 18
     FALLBACK_PAGE_SPAN_DAYS = 23
-    # Known historical correction: draw #01394 must be refreshed and
-    # overwritten on every daily crawl because the stored row has previously
-    # been inconsistent with the validated fallback source.
+    # Historical correction metadata is retained for explicit correction/backfill
+    # operations only. Daily incremental crawl never reloads an existing draw.
     KNOWN_CORRECTION_ID = "01394"
     KNOWN_CORRECTION_DATE = "2026-09-05"
 
     _FALLBACK_PATTERN = re.compile(
-        r"KẾT QUẢ XỔ SỐ POWER 6/55\\s*-\\s*NGÀY:\\s*(\\d{2}/\\d{2}/\\d{4}).*?"
-        r"Kỳ vé:\\s*#?(\\d{5}).*?"
-        r"Ngày quay thưởng\\s*(\\d{2}/\\d{2}/\\d{4})\\s*(.*?)Giải thưởng",
+        r"KẾT QUẢ XỔ SỐ POWER 6/55\s*-\s*NGÀY:\s*(\d{2}/\d{2}/\d{4}).*?"
+        r"Kỳ vé:\s*#?(\d{5}).*?"
+        r"Ngày quay thưởng\s*(\d{2}/\d{2}/\d{4})\s*(.*?)Giải thưởng",
         re.IGNORECASE,
     )
 
@@ -69,7 +68,7 @@ class ProductPower655(BaseProduct):
                 )
                 continue
 
-            numbers = [int(x) for x in re.findall(r"(?<!\\d)(\\d{1,2})(?!\\d)", body)]
+            numbers = [int(x) for x in re.findall(r"(?<!\d)(\d{1,2})(?!\d)", body)]
             if len(numbers) < 7:
                 continue
             result = numbers[:7]
