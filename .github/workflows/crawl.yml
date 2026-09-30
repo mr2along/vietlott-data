@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: crawl-main
+  group: power655-main-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -28,9 +28,40 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-      - name: Crawl Power 6/55
+      - name: Crawl Power 6/55 incrementally
         run: |
-          vietlott-crawl power_655 --index-from 0 --index-to 1
+          set -euo pipefail
+          max_attempts=20
+          for attempt in $(seq 1 "$max_attempts"); do
+            before="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("data/power655.jsonl")
+          if not p.exists():
+              print(0)
+          else:
+              rows = [json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
+              print(max((int(r["id"]) for r in rows), default=0))
+          PY
+          )"
+            vietlott-crawl power_655 --index-from 0 --index-to 1
+            after="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("data/power655.jsonl")
+          rows = [json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
+          print(max((int(r["id"]) for r in rows), default=0))
+          PY
+          )"
+            echo "incremental catch-up attempt ${attempt}: ${before} -> ${after}"
+            if [ "$after" -le "$before" ]; then
+              break
+            fi
+            if [ "${attempt}" -eq "${max_attempts}" ]; then
+              echo "::error::Power 6/55 did not finish incremental catch-up after ${max_attempts} draws."
+              exit 1
+            fi
+          done
       - name: Backfill missing Power 6/55 draws
         run: |
           vietlott-missing power_655 --limit 20
