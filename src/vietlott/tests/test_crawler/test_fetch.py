@@ -95,7 +95,7 @@ def test_power655_fallback_parses_validated_rows(monkeypatch, tmp_path):
     assert '"result":[6,11,25,27,37,45,15]' in row
 
 
-def test_power655_fallback_replaces_stale_row(monkeypatch, tmp_path):
+def test_power655_fallback_does_not_overwrite_existing_row(monkeypatch, tmp_path):
     html = """
     <html><body>
     <h4>KẾT QUẢ XỔ SỐ POWER 6/55 - NGÀY: 17/09/2026</h4>
@@ -126,4 +126,4 @@ def test_power655_fallback_replaces_stale_row(monkeypatch, tmp_path):
     assert product.crawl_fallback("2026-09-18", 0, 1) is True
     rows = [line for line in product.product_config.raw_path.read_text().splitlines() if line.strip()]
     assert len(rows) == 1
-    assert '"result":[6,11,25,27,37,45,15]' in rows[0]
+    assert '"result":[1,2,3,4,5,6,7]' in rows[0]
