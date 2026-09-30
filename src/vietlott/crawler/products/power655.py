@@ -40,6 +40,10 @@ class ProductPower655(BaseProduct):
         "https://www.minhngoc.net.vn/ket-qua-xo-so/dien-toan-vietlott/"
         "power-6x55/{date}.html"
     )
+    FALLBACK_CORRECTION_URL = (
+        "https://www.minhngoc.net.vn/ket-qua-xo-so/dien-toan-vietlott/"
+        "power-6x55/thu-bay.html"
+    )
     # Minh Ngoc's date pages expose roughly 10 Power 6/55 draws. The first
     # historical page needed after the current page is anchored about 18 days
     # before the run date; each subsequent page advances by about 23 days.
@@ -169,11 +173,9 @@ class ProductPower655(BaseProduct):
         # Always refresh the known-bad historical draw as an explicit
         # correction, even though its ID is below the current maximum.
         if index_from == 0:
-            correction_url = self.FALLBACK_DATE_URL.format(
-                date=datetime.strptime(
-                    self.KNOWN_CORRECTION_DATE, "%Y-%m-%d"
-                ).strftime("%d-%m-%Y")
-            )
+            # Use the stable Saturday archive page that is verified to
+            # contain draw #01394, rather than guessing a date-page URL.
+            correction_url = self.FALLBACK_CORRECTION_URL
             res = requests.get(
                 correction_url,
                 headers={"User-Agent": "Mozilla/5.0 (compatible; vietlott-data/0.2)"},
