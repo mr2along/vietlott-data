@@ -45,6 +45,11 @@ class ProductPower655(BaseProduct):
     # before the run date; each subsequent page advances by about 23 days.
     FALLBACK_PAGE_ANCHOR_DAYS = 18
     FALLBACK_PAGE_SPAN_DAYS = 23
+    # Known historical correction: draw #01394 must be refreshed and
+    # overwritten on every daily crawl because the stored row has previously
+    # been inconsistent with the validated fallback source.
+    KNOWN_CORRECTION_ID = "01394"
+    KNOWN_CORRECTION_DATE = "2026-09-05"
 
     _FALLBACK_PATTERN = re.compile(
         r"KẾT QUẢ XỔ SỐ POWER 6/55\\s*-\\s*NGÀY:\\s*(\\d{2}/\\d{2}/\\d{4}).*?"
@@ -161,6 +166,41 @@ class ProductPower655(BaseProduct):
                 f"next=#{next_id:05d}"
             )
 
+        # Always refresh the known-bad historical draw as an explicit
+        # correction, even though its ID is below the current maximum.
+        if index_from == 0:
+            correction_url = self.FALLBACK_DATE_URL.format(
+                date=datetime.strptime(
+                    self.KNOWN_CORRECTION_DATE, "%Y-%m-%d"
+                ).strftime("%d-%m-%Y")
+            )
+            res = requests.get(
+                correction_url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; vietlott-data/0.2)"},
+                timeout=15,
+            )
+            res.raise_for_status()
+            correction_text = BeautifulSoup(
+                res.text, "lxml"
+            ).get_text(" ", strip=True)
+            correction_rows = [
+                row
+                for row in self._parse_fallback_text(correction_text)
+                if row["id"] == self.KNOWN_CORRECTION_ID
+            ]
+            if len(correction_rows) != 1:
+                raise RuntimeError(
+                    f"expected exactly one validated correction row "
+                    f"#{self.KNOWN_CORRECTION_ID}, found {len(correction_rows)}"
+                )
+            logger.info(
+                f"refreshing known correction #{self.KNOWN_CORRECTION_ID} "
+                f"from {correction_url}"
+            )
+            rows.extend(correction_rows)
+
+        rows = list({row["id"]: row for row in rows}.values())
+        rows.sort(key=lambda row: (row["date"], row["id"]))
         logger.info(
             f"fallback selected {len(rows)} draw(s), latest={rows[-1]['id']}"
         )
