@@ -356,3 +356,43 @@ def test_anchor_selection_uses_diversity_when_source_scores_are_close():
 
     assert anchors[0] == (1, 2, 3, 4, 5, 6)
     assert anchors[1] == (12, 13, 14, 15, 16, 17)
+
+
+def test_coverage_repeat_weight_changes_rescue_priority():
+    target = date(2026, 1, 13)
+    base_scores = {number: 0.0 for number in range(1, 56)}
+
+    low_repeat = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=30,
+        coverage_rescue_size=1,
+        coverage_repeat_weight=0.0,
+        ensemble_score_mode="full_rank",
+    )
+    high_repeat = PortfolioEnsembleStrategy(
+        _history(),
+        weights={"Bayesian": 1.0, "ExponentialDecay": 0.0, "LogisticProbability": 0.0},
+        tickets_per_draw=30,
+        candidate_pool_size=30,
+        coverage_rescue_size=1,
+        coverage_repeat_weight=1.0,
+        ensemble_score_mode="full_rank",
+    )
+
+    for model in (low_repeat, high_repeat):
+        model._scores = lambda _target: base_scores
+        model._components = lambda: []
+        model._reservoir_sets = lambda _target: {
+            "recent": set(),
+            "long_frequency": set(),
+            "repeat": {55},
+            "overdue": set(),
+        }
+
+    low_ranked = low_repeat._coverage_rank(target, set(range(1, 31)))
+    high_ranked = high_repeat._coverage_rank(target, set(range(1, 31)))
+
+    assert high_ranked[0] == 55
+    assert low_ranked[0] != 55
