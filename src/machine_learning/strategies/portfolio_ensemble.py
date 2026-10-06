@@ -255,7 +255,10 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
         normalized = self._normalize(scores)
         pool = [n for n in range(self.min_val, self.max_val + 1) if n not in excluded]
         model_keys = [k for k in reservoirs if k.startswith("model:")]
-        history_keys = [k for k in reservoirs if not k.startswith("model:")]
+        history_keys = [
+            k for k in reservoirs
+            if not k.startswith("model:") and k != "repeat"
+        ]
 
         model_strength_by_number: dict[int, list[float]] = {
             number: [] for number in pool
@@ -292,7 +295,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
             )
             model_specificity = model_specificity_by_number.get(n, 0.0)
             repeat_signal = 1.0 if n in reservoirs.get("repeat", set()) else 0.0
-            history_breadth = (
+            history_signal = (
                 (1.0 - self.coverage_repeat_weight) * history_breadth
                 + self.coverage_repeat_weight * repeat_signal
             )
@@ -300,7 +303,7 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                 0.52 * normalized.get(n, 0.0)
                 + 0.25 * model_specificity
                 + 0.08 * model_breadth
-                + 0.15 * history_breadth
+                + 0.15 * history_signal
             )
             return (
                 -utility,
