@@ -131,7 +131,7 @@ jobs:
           python -m src.machine_learning.forecast_next \
             --tickets 30 \
             --candidate-pool-size 30 \
-            --coverage-rescue-size 8 \
+            --coverage-rescue-size 0 \
             --ensemble-score-mode full_rank \
             --max-pair-reuse 2 --max-consecutive-run 3 \
             --anchor-ticket-count 3
@@ -291,7 +291,7 @@ jobs:
         run: |
           echo "Precomputed forecast is missing or stale; running production fallback."
           python -m src.machine_learning.run_decay_validation
-          python -m src.machine_learning.forecast_next             --tickets 30             --candidate-pool-size 30             --coverage-rescue-size 8             --ensemble-score-mode full_rank             --max-pair-reuse 2 --max-consecutive-run 3             --anchor-ticket-count 3
+          python -m src.machine_learning.forecast_next             --tickets 30             --candidate-pool-size 30             --coverage-rescue-size 0             --ensemble-score-mode full_rank             --max-pair-reuse 2 --max-consecutive-run 3             --anchor-ticket-count 3
       - name: Final forecast target check
         run: |
           python - <<'PY'
