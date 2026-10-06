@@ -385,7 +385,7 @@ def test_coverage_repeat_weight_changes_rescue_priority():
         model._scores = lambda _target: base_scores
         model._components = lambda: []
         model._reservoir_sets = lambda _target: {
-            "recent": set(),
+            "recent": {31},
             "long_frequency": set(),
             "repeat": {55},
             "overdue": set(),
