@@ -169,14 +169,20 @@ def main() -> None:
     parser.add_argument(
         "--coverage-rescue-size",
         type=int,
-        default=0,
-        help="Optional numbers reserved from historical coverage/repeat ranking outside the core score pool",
+        default=8,
+        help="Numbers reserved from historical coverage/repeat ranking outside the core score pool",
     )
     parser.add_argument(
         "--ensemble-score-mode",
         choices=("top6", "full_rank"),
         default="full_rank",
         help="Ensemble scoring: legacy top-six Borda or full-number ranking",
+    )
+    parser.add_argument(
+        "--max-consecutive-run",
+        type=int,
+        default=3,
+        help="Maximum allowed run of consecutive main numbers in a ticket",
     )
     parser.add_argument(
         "--max-pair-reuse",
@@ -206,6 +212,8 @@ def main() -> None:
         raise ValueError("--candidate-pool-size must be >= 6")
     if not 0 <= args.coverage_rescue_size <= args.candidate_pool_size - 6:
         raise ValueError("--coverage-rescue-size must leave room for six-number tickets")
+    if args.max_consecutive_run < 1:
+        raise ValueError("--max-consecutive-run must be >= 1")
     if args.max_pair_reuse < 1:
         raise ValueError("--max-pair-reuse must be >= 1")
     if not 0.0 <= args.consensus_discount <= 1.0:
@@ -267,6 +275,7 @@ def main() -> None:
             exposure_power=1.35,
             pair_reuse_penalty=0.75,
             max_pair_reuse=args.max_pair_reuse,
+            max_consecutive_run=args.max_consecutive_run,
             decay_half_life_days=decay_half_life_days,
             consensus_discount=args.consensus_discount,
             weights=adaptive_weights,
@@ -280,7 +289,7 @@ def main() -> None:
             usage_penalty=0.35,
             max_number_usage=args.max_number_usage,
             excluded_sets=seen_sets,
-            max_consecutive_run=3,
+            max_consecutive_run=args.max_consecutive_run,
             max_pair_reuse=args.max_pair_reuse,
             coverage_rescue_size=args.coverage_rescue_size,
             ensemble_score_mode=args.ensemble_score_mode,
@@ -329,7 +338,7 @@ def main() -> None:
             "validated_decay_half_life_days": decay_half_life_days,
             "historical_exact_sets": len(seen_sets),
             "unseen_portfolio_exact_exclusion": True,
-            "max_consecutive_run": 3,
+            "max_consecutive_run": args.max_consecutive_run,
             "special_used_as_feature": False,
             "portfolio_tickets": args.tickets,
             "candidate_pool_size": args.candidate_pool_size,
