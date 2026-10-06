@@ -395,4 +395,4 @@ def test_coverage_repeat_weight_changes_rescue_priority():
     high_ranked = high_repeat._coverage_rank(target, set(range(1, 31)))
 
     assert high_ranked[0] == 55
-    assert low_ranked[0] != 55
+    assert low_ranked[0] == 31
