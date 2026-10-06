@@ -291,6 +291,11 @@ class PortfolioEnsembleStrategy(RankEnsembleStrategy):
                 sum(n in reservoirs[k] for k in history_keys) / max(len(history_keys), 1)
             )
             model_specificity = model_specificity_by_number.get(n, 0.0)
+            repeat_signal = 1.0 if n in reservoirs.get("repeat", set()) else 0.0
+            history_breadth = (
+                (1.0 - self.coverage_repeat_weight) * history_breadth
+                + self.coverage_repeat_weight * repeat_signal
+            )
             utility = (
                 0.52 * normalized.get(n, 0.0)
                 + 0.25 * model_specificity
