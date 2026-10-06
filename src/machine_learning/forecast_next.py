@@ -169,7 +169,7 @@ def main() -> None:
     parser.add_argument(
         "--coverage-rescue-size",
         type=int,
-        default=8,
+        default=0,
         help="Numbers reserved from historical coverage/repeat ranking outside the core score pool",
     )
     parser.add_argument(
