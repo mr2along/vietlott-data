@@ -35,8 +35,9 @@ class ProductPower655(BaseProduct):
 
     # Primary crawling uses Vietlott's Ajax endpoint. These sources are only used
     # when that endpoint is blocked, rate-limited, unavailable, or returns a challenge.
+    FALLBACK_URL = "https://baomoi.com/tien-ich-ket-qua-vietlott-power655.epi"
     FALLBACK_URLS = (
-        "https://baomoi.com/tien-ich-ket-qua-vietlott-power655.epi",
+        FALLBACK_URL,
         "https://xoso.com.vn/xo-so-power-655.html",
         "https://xskt.com.vn/xspower/200-ngay",
     )
@@ -66,7 +67,7 @@ class ProductPower655(BaseProduct):
     _DATE = re.compile(
         r"(?<!\d)(\d{1,2}[/-]\d{1,2}(?:[/-]\d{4})?)(?!\d)"
     )
-    _NUMBER = re.compile(r"(?<!\d)(\d{1,2})(?!\d)")
+    _NUMBER = re.compile(r"(?<![\w])(\d{1,2})(?![\w])")
     _BLOCK_PAGE_MARKERS = (
         "just a moment",
         "attention required",
@@ -142,23 +143,22 @@ class ProductPower655(BaseProduct):
             context_start = max(0, marker.start() - 180)
             context_end = min(len(normalized), marker.end() + 1600)
             date_matches = list(self._DATE.finditer(normalized, context_start, context_end))
-            if not date_matches:
-                logger.warning("fallback row {} from {} has no date", draw_id, source)
+            valid_dates = []
+            for date_match in date_matches:
+                date_text = date_match.group(1)
+                try:
+                    parsed_date = self._date_to_iso(date_text, source_date)
+                    parsed_day = date.fromisoformat(parsed_date)
+                    if parsed_day > source_date + timedelta(days=1):
+                        continue
+                    # Reject false date-like fragments such as the product label "6/55".
+                    valid_dates.append((abs(date_match.start() - marker.start()), parsed_date, date_text))
+                except ValueError:
+                    continue
+            if not valid_dates:
+                logger.warning("fallback row {} from {} has no valid date", draw_id, source)
                 continue
-            nearest_date = min(date_matches, key=lambda match: abs(match.start() - marker.start()))
-            date_text = nearest_date.group(1)
-            try:
-                draw_date = self._date_to_iso(date_text, source_date)
-                if date.fromisoformat(draw_date) > source_date + timedelta(days=1):
-                    raise ValueError(f"future draw date {draw_date}")
-            except ValueError:
-                logger.warning(
-                    "fallback row {} from {} has invalid or implausible date {}",
-                    draw_id,
-                    source,
-                    date_text,
-                )
-                continue
+            _, draw_date, date_text = min(valid_dates, key=lambda item: item[0])
 
             # Dates must not become lottery numbers. The winning numbers are the first
             # valid 6+1 sequence after the draw marker; later prize amounts/statistics
