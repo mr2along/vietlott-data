@@ -1,5 +1,5 @@
 from datetime import date, datetime, timedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from bs4 import BeautifulSoup
 import re
