@@ -74,7 +74,16 @@ class ProductPower655(BaseProduct):
                 continue
             date_text = date_matches[-1].group(1).replace("-", "/")
             try:
-                draw_date = datetime.strptime(date_text, "%d/%m/%Y").strftime("%Y-%m-%d")
+                if len(date_text.split("/")) == 2:
+                    # Some historical archive pages omit the year. Resolve it to
+                    # the nearest plausible past date relative to the runner clock.
+                    today = datetime.now().date()
+                    candidate = datetime.strptime(f"{date_text}/{today.year}", "%d/%m/%Y").date()
+                    if (candidate - today).days > 2:
+                        candidate = candidate.replace(year=today.year - 1)
+                    draw_date = candidate.isoformat()
+                else:
+                    draw_date = datetime.strptime(date_text, "%d/%m/%Y").strftime("%Y-%m-%d")
             except ValueError:
                 logger.warning("fallback row {} from {} has invalid date {}", draw_id, source, date_text)
                 continue
