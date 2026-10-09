@@ -51,3 +51,37 @@ def test_multi_page_fallback_backfills_all_draws(monkeypatch, tmp_path: Path) ->
         )
     ]
     assert ids == ["01405", "01406", "01407", "01408"]
+
+
+def test_single_page_incremental_crawl_recovers_recent_gap(monkeypatch, tmp_path: Path) -> None:
+    """The latest fallback page can repair an internal gap without overwriting existing draws."""
+    latest_html = (
+        _draw("01407", "2026-10-06", [8, 9, 10, 11, 12, 13, 14])
+        + _draw("01408", "2026-10-08", [15, 16, 17, 18, 19, 20, 21])
+    )
+
+    class Response:
+        text = latest_html
+
+        def raise_for_status(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        "vietlott.crawler.products.power655.requests.get",
+        lambda *args, **kwargs: Response(),
+    )
+    product = ProductPower655()
+    product.product_config.raw_path = tmp_path / "power655.jsonl"
+    product.product_config.raw_path.write_text(
+        '{"date":"2026-10-03","id":"01406","result":[1,2,3,4,5,6,7],"process_time":"old"}\\n'
+        '{"date":"2026-10-08","id":"01408","result":[22,23,24,25,26,27,28],"process_time":"keep"}\\n',
+        encoding="utf-8",
+    )
+
+    assert product.crawl_fallback("2026-10-09", 0, 1) is True
+    rows = [
+        json.loads(line)
+        for line in product.product_config.raw_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert [row["id"] for row in rows] == ["01406", "01407", "01408"]
+    assert rows[-1]["result"] == [22, 23, 24, 25, 26, 27, 28]
