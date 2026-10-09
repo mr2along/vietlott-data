@@ -220,3 +220,16 @@ def test_known_correction_is_refreshed_without_skipping_next_draw(monkeypatch, t
     by_id = {row["id"]: row for row in rows}
     assert by_id["01394"]["result"] == [3, 10, 20, 30, 40, 50, 6]
     assert by_id["01408"]["result"] == [1, 7, 12, 27, 31, 52, 6]
+
+
+def test_fallback_parser_resolves_yearless_xskt_archive_date():
+    text = (
+        "Xổ số Vietlott Power ngày 04/06 (Thứ 5) "
+        "Kỳ mở thưởng: #01354 Kết quả | 23 24 28 29 39 43 "
+        "Số JP2 | 45 Thống kê trúng giải"
+    )
+    rows = ProductPower655()._parse_fallback_text(text, source="xskt.com.vn")
+    assert len(rows) == 1
+    assert rows[0]["id"] == "01354"
+    assert rows[0]["date"].endswith("-06-04")
+    assert rows[0]["result"] == [23, 24, 28, 29, 39, 43, 45]
