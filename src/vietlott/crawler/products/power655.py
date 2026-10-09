@@ -90,7 +90,8 @@ class ProductPower655(BaseProduct):
 
             # Result numbers occur before the prize table / next draw marker.
             # Parse only the first seven number tokens after the draw ID.
-            numbers = [int(value) for value in self._NUMBER.findall(segment)]
+            result_text = self._DATE.sub(" ", segment)
+            numbers = [int(value) for value in self._NUMBER.findall(result_text)]
             result = numbers[:7]
             if not self._valid_result(result):
                 logger.warning("fallback row {} from {} has invalid result {}", draw_id, source, result)
