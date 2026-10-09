@@ -1,4 +1,6 @@
+import json
 import math
+import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 
@@ -109,12 +111,21 @@ class BaseProduct:
         try:
             with ThreadPoolExecutor(max_workers=self.product_config.num_thread) as pool:
                 results = list(pool.map(fetch_fn, tasks))
-        except RuntimeError as exc:
+        except (RuntimeError, json.JSONDecodeError, ValueError) as exc:
             error_text = str(exc)
-            if "HTTP 403" not in error_text and "HTTP 429" not in error_text:
+            status_block = re.search(
+                r"HTTP (?:403|407|408|425|429|500|502|503|504|520|521|522|523|524)\b",
+                error_text,
+            )
+            retry_exhausted = "request failed after retries" in error_text.lower()
+            malformed_power655_response = (
+                self.name == "power_655"
+                and isinstance(exc, (json.JSONDecodeError, ValueError))
+            )
+            if not (status_block or retry_exhausted or malformed_power655_response):
                 raise
             logger.warning(
-                "official Vietlott endpoint was blocked/rate-limited; "
+                "official Vietlott endpoint unavailable/blocked or response malformed; "
                 f"trying validated fallback: {exc}"
             )
             return self.crawl_fallback(run_date_str, index_from, index_to)
