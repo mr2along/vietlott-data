@@ -11,6 +11,8 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any
 
+# Keep the package's historical public API while avoiding imports of optional
+# numerical dependencies until a caller requests an ML/backtesting symbol.
 _EXPORTS = {
     "PredictModel": ".strategies.base",
     "RandomModel": ".strategies.random_strategy",
