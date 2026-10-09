@@ -19,3 +19,26 @@ assert "numpy" not in sys.modules
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_lazy_package_keeps_legacy_public_exports() -> None:
+    """Lazy loading must not remove previously documented package exports."""
+    probe = """
+import src.machine_learning as ml
+expected = {
+    "PredictModel", "RandomModel", "NotRepeatStrategy", "FrequencyStrategy",
+    "HotNumbersStrategy", "ColdNumbersStrategy", "PatternStrategy",
+    "LongAbsenceStrategy", "ExponentialDecayStrategy", "PairFrequencyStrategy",
+    "MarkovChainStrategy", "StrategyBacktester", "ParameterTuner",
+    "StrategyComparator", "BacktestResult",
+}
+assert set(ml.__all__) == expected
+assert "numpy" not in __import__("sys").modules
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
