@@ -73,8 +73,9 @@ def test_single_page_incremental_crawl_recovers_recent_gap(monkeypatch, tmp_path
     product = ProductPower655()
     product.product_config.raw_path = tmp_path / "power655.jsonl"
     product.product_config.raw_path.write_text(
-        '{"date":"2026-10-03","id":"01406","result":[1,2,3,4,5,6,7],"process_time":"old"}\\n'
-        '{"date":"2026-10-08","id":"01408","result":[22,23,24,25,26,27,28],"process_time":"keep"}\\n',
+        """{"date":"2026-10-03","id":"01406","result":[1,2,3,4,5,6,7],"process_time":"old"}
+{"date":"2026-10-08","id":"01408","result":[22,23,24,25,26,27,28],"process_time":"keep"}
+""",
         encoding="utf-8",
     )
 
