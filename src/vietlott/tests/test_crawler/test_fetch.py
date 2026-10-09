@@ -233,3 +233,107 @@ def test_fallback_parser_resolves_yearless_xskt_archive_date():
     assert rows[0]["id"] == "01354"
     assert rows[0]["date"].endswith("-06-04")
     assert rows[0]["result"] == [23, 24, 28, 29, 39, 43, 45]
+
+
+def test_fallback_parser_supports_baomoi_compact_draw_marker_and_date_below_result():
+    text = (
+        "Kết quả quay số mở thưởng Power 6/55 Giá trị Jackpot 1 "
+        "Kỳ #01408 01 07 12 27 31 52 06 Thống kê giải thưởng "
+        "Kỳ mở thưởng gần đây Thứ 5, 08-10-2026 Thứ 3, 06-10-2026 "
+        "Thứ 7, 03-10-2026"
+    )
+    rows = ProductPower655()._parse_fallback_text(
+        text,
+        source="baomoi.com",
+        reference_date="2026-10-09",
+    )
+    assert len(rows) == 1
+    assert rows[0]["id"] == "01408"
+    assert rows[0]["date"] == "2026-10-08"
+    assert rows[0]["result"] == [1, 7, 12, 27, 31, 52, 6]
+    assert rows[0]["source"] == "baomoi.com"
+
+
+def test_official_detail_parser_does_not_drop_first_result_row():
+    product = ProductPower655()
+    parsed = product.process_result(
+        {},
+        {},
+        {
+            "value": {
+                "HtmlContent": """
+                <table>
+                  <tr><th>Ngày quay</th><th>Kỳ quay</th><th>Kết quả</th></tr>
+                  <tr><td>08/10/2026</td><td>01408</td>
+                    <td><span>01</span> <span>07</span> <span>12</span>
+                        <span>27</span> <span>31</span> <span>52</span>
+                        <span>|</span> <span>06</span></td></tr>
+                </table>
+                """
+            }
+        },
+        {},
+    )
+    assert len(parsed) == 1
+    assert parsed[0]["id"] == "01408"
+    assert parsed[0]["date"] == "2026-10-08"
+    assert parsed[0]["result"] == [1, 7, 12, 27, 31, 52, 6]
+
+
+def test_conflicting_independent_sources_are_quarantined():
+    product = ProductPower655()
+    row = {
+        "date": "2026-10-08",
+        "id": "01408",
+        "result": [1, 7, 12, 27, 31, 52, 6],
+        "process_time": "now",
+        "source": "baomoi.com",
+    }
+    disagreement = {
+        **row,
+        "result": [2, 8, 13, 28, 32, 53, 7],
+        "source": "xoso.com.vn",
+    }
+    assert product._resolve_source_rows({
+        "01408": {"baomoi.com": row, "xoso.com.vn": disagreement}
+    }) == {}
+
+
+def test_official_source_disagreement_is_never_written_over_third_party_data():
+    product = ProductPower655()
+    third_party = {
+        "date": "2026-10-08",
+        "id": "01408",
+        "result": [1, 7, 12, 27, 31, 52, 6],
+        "process_time": "now",
+        "source": "baomoi.com",
+    }
+    official = {
+        **third_party,
+        "result": [2, 8, 13, 28, 32, 53, 7],
+        "source": "vietlott.vn",
+    }
+    assert product._resolve_source_rows({
+        "01408": {"baomoi.com": third_party, "vietlott.vn": official}
+    }) == {}
+
+
+def test_primary_cloudflare_failure_invokes_fallback(monkeypatch, tmp_path):
+    product = ProductPower655()
+    product.product_config.raw_path = tmp_path / "power655.jsonl"
+    called = []
+    monkeypatch.setattr(
+        "vietlott.crawler.products.base.fetch.fetch_wrapper",
+        lambda *args, **kwargs: lambda tasks: (_ for _ in ()).throw(
+            RuntimeError("HTTP 403 for task 0: Cloudflare Access denied")
+        ),
+    )
+    monkeypatch.setattr(
+        product,
+        "crawl_fallback",
+        lambda run_date_str, index_from, index_to: called.append(
+            (run_date_str, index_from, index_to)
+        ) or True,
+    )
+    assert product.crawl("2026-10-09", 0, 1) is True
+    assert called == [("2026-10-09", 0, 1)]
