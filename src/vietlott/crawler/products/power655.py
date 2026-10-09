@@ -133,35 +133,44 @@ class ProductPower655(BaseProduct):
         if not rows:
             raise RuntimeError("Power 6/55 fallback returned no validated draws")
 
-        # Daily refresh is incremental: only persist the next draw after the
-        # current maximum ID. Historical gaps are handled separately by
-        # vietlott-missing and therefore stay out of the daily crawl.
-        if index_from == 0:
+        # Only a single-page request [0, 1) is a daily refresh. Multi-page
+        # requests are historical backfills and must upsert every validated row.
+        # Even on a daily refresh, fill any missing IDs already covered by the
+        # latest page before appending at most the next new draw.
+        if index_from == 0 and index_to <= 1:
             import polars as pl
 
-            current_max_id = 0
+            current_ids: set[int] = set()
             if self.product_config.raw_path.exists():
                 current = pl.read_ndjson(
                     self.product_config.raw_path, infer_schema_length=None
                 ).with_columns(pl.col("id").cast(pl.Utf8))
-                if len(current):
-                    current_max_id = max(int(value) for value in current["id"].to_list())
+                current_ids = {int(value) for value in current["id"].to_list()}
+            current_max_id = max(current_ids, default=0)
 
+            recoverable_gaps = [
+                row
+                for row in rows
+                if int(row["id"]) < current_max_id and int(row["id"]) not in current_ids
+            ]
             new_rows = [row for row in rows if int(row["id"]) > current_max_id]
-            if not new_rows:
+            next_draw_rows = (
+                [min(new_rows, key=lambda row: int(row["id"]))]
+                if new_rows
+                else []
+            )
+            rows = recoverable_gaps + next_draw_rows
+            if not rows:
                 logger.info(
                     f"Power 6/55 already up to date at #{current_max_id:05d}; "
-                    "no new draw to store."
+                    "no new draw or recoverable latest-page gap to store."
                 )
                 return True
 
-            # If the source exposes several unseen draws, persist only the
-            # earliest next draw. The following run will pick up the next one.
-            next_id = min(int(row["id"]) for row in new_rows)
-            rows = [row for row in new_rows if int(row["id"]) == next_id]
             logger.info(
                 f"incremental Power 6/55 crawl: current=#{current_max_id:05d}, "
-                f"next=#{next_id:05d}"
+                f"recovering {len(recoverable_gaps)} internal gap(s), "
+                f"appending {len(next_draw_rows)} next draw(s)"
             )
 
         rows = list({row["id"]: row for row in rows}.values())
