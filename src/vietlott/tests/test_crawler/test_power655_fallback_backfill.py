@@ -1,3 +1,4 @@
+import json
 from datetime import date
 from pathlib import Path
 
@@ -45,7 +46,7 @@ def test_multi_page_fallback_backfills_all_draws(monkeypatch, tmp_path: Path) ->
     ids = [
         row["id"]
         for row in (
-            __import__("json").loads(line)
+            json.loads(line)
             for line in product.product_config.raw_path.read_text(encoding="utf-8").splitlines()
         )
     ]
