@@ -211,8 +211,8 @@ def test_known_correction_is_refreshed_without_skipping_next_draw(monkeypatch, t
     product = ProductPower655()
     product.product_config.raw_path = tmp_path / "power655.jsonl"
     product.product_config.raw_path.write_text(
-        '{"date":"2026-09-05","id":"01394","result":[1,2,3,4,5,6,7],"process_time":"old"}\\n'
-        '{"date":"2026-10-06","id":"01407","result":[6,7,18,20,24,27,1],"process_time":"old"}\\n',
+        '{"date":"2026-09-05","id":"01394","result":[1,2,3,4,5,6,7],"process_time":"old"}\n'
+        '{"date":"2026-10-06","id":"01407","result":[6,7,18,20,24,27,1],"process_time":"old"}\n',
         encoding="utf-8",
     )
     assert product.crawl_fallback("2026-10-09", 0, 1) is True
