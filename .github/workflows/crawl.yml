@@ -111,7 +111,8 @@ jobs:
           python src/render_readme.py
           python src/render_docs.py
       - name: Validate Power 6/55 data
-        run: python -m src.machine_learning.normalize_power655
+        # Run as a script so normalization remains independent of optional ML packages.
+        run: python src/machine_learning/normalize_power655.py
       - name: Commit updated data
         run: |
           git config user.name "github-actions[bot]"
