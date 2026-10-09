@@ -155,18 +155,22 @@ class ProductPower655(BaseProduct):
         if correction is not None:
             selected.append(correction)
 
-        if index_from == 0:
-            unseen = [row for row in rows if int(row["id"]) > current_max_id]
+        if index_from == 0 and index_to <= 1:
             if not current.height:
                 # Bootstrap must start at the newest available draw, not the oldest.
-                next_rows = [max(rows, key=lambda row: int(row["id"]))]
-            elif unseen:
-                next_id = min(int(row["id"]) for row in unseen)
-                next_rows = [row for row in unseen if int(row["id"]) == next_id]
+                selected.append(max(rows, key=lambda row: int(row["id"])))
             else:
-                next_rows = []
-            selected.extend(next_rows)
-        else:
+                # Recover missing IDs visible in the recent source window, while
+                # appending no more than one new draw during the daily crawl.
+                recoverable_gaps = [
+                    row for row in rows
+                    if int(row["id"]) < current_max_id and row["id"] not in current_ids
+                ]
+                selected.extend(recoverable_gaps)
+                unseen = [row for row in rows if int(row["id"]) > current_max_id]
+                if unseen:
+                    selected.append(min(unseen, key=lambda row: int(row["id"])))
+        elif index_from == 0:
             # Historical source pages are finite; use draw IDs as the stable
             # backfill cursor, with six draws per source-page step.
             low_id = max(1, current_max_id - max(index_to, index_from + 1) * 6)
