@@ -1,8 +1,8 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List
+import re
 
 from bs4 import BeautifulSoup
-import re
 import requests
 from loguru import logger
 
@@ -13,7 +13,7 @@ from vietlott.crawler.schema.requests import RequestPower655
 class ProductPower655(BaseProduct):
     name = "power_655"
     url = "https://vietlott.vn/ajaxpro/Vietlott.PlugIn.WebParts.Game655CompareWebPart,Vietlott.PlugIn.WebParts.ashx"
-    page_to_run = 1  # roll every 2 days
+    page_to_run = 1
 
     stored_data_dtype = {
         "date": str,
@@ -32,174 +32,178 @@ class ProductPower655(BaseProduct):
     )
     org_params = {}
 
-    def __init__(self):
-        super(ProductPower655, self).__init__()
-
-    FALLBACK_URL = "https://www.minhngoc.net/ket-qua-xo-so/dien-toan-vietlott/power-6x55.html"
-    FALLBACK_DATE_URL = (
-        "https://www.minhngoc.net.vn/ket-qua-xo-so/dien-toan-vietlott/"
-        "power-6x55/{date}.html"
+    # Independent public sources. Minh Ngoc is intentionally not used.
+    FALLBACK_URLS = (
+        "https://xoso.com.vn/xo-so-power-655.html",
+        "https://xskt.com.vn/xspower/200-ngay",
     )
-    # Minh Ngoc's date pages expose roughly 10 Power 6/55 draws. The first
-    # historical page needed after the current page is anchored about 18 days
-    # before the run date; each subsequent page advances by about 23 days.
-    FALLBACK_PAGE_ANCHOR_DAYS = 18
-    FALLBACK_PAGE_SPAN_DAYS = 23
-    # Historical correction metadata is retained for explicit correction/backfill
-    # operations only. Daily incremental crawl never reloads an existing draw.
     KNOWN_CORRECTION_ID = "01394"
     KNOWN_CORRECTION_DATE = "2026-09-05"
+    REQUEST_TIMEOUT_SECONDS = 20
+    USER_AGENT = "Mozilla/5.0 (compatible; vietlott-data/0.3; +https://github.com/mr2along/vietlott-data)"
 
-    _FALLBACK_PATTERN = re.compile(
-        r"KẾT QUẢ XỔ SỐ POWER 6/55\s*-\s*NGÀY:\s*(\d{2}/\d{2}/\d{4}).*?"
-        r"Kỳ vé:\s*#?(\d{5}).*?"
-        r"Ngày quay thưởng\s*(\d{2}/\d{2}/\d{4})\s*(.*?)Giải thưởng",
-        re.IGNORECASE,
-    )
+    _DRAW_MARKER = re.compile(r"(?:Kỳ\s+(?:quay thưởng|mở thưởng)|Kỳ vé)\s*:?\s*#?(\d{5})", re.IGNORECASE)
+    _DATE = re.compile(r"(?<!\d)(\d{2}[/-]\d{2}[/-]\d{4})(?!\d)")
+    _NUMBER = re.compile(r"(?<!\d)(\d{1,2})(?!\d)")
 
-    def _parse_fallback_text(self, text: str) -> List[Dict]:
+    def _valid_result(self, result: List[int]) -> bool:
+        return (
+            len(result) == 7
+            and len(set(result[:6])) == 6
+            and all(1 <= n <= 55 for n in result)
+            and result[6] not in result[:6]
+        )
+
+    def _parse_fallback_text(self, text: str, source: str = "unknown") -> List[Dict]:
+        """Parse Power 6/55 results from xoso.com.vn or xskt.com.vn text."""
+        normalized = re.sub(r"\s+", " ", text).strip()
+        markers = list(self._DRAW_MARKER.finditer(normalized))
         rows: List[Dict] = []
-        for match in self._FALLBACK_PATTERN.finditer(text):
-            date_str, draw_id, draw_date_str, body = match.groups()
-            if date_str != draw_date_str:
-                logger.warning(
-                    f"discarding fallback row {draw_id}: page date {date_str} "
-                    f"does not match draw date {draw_date_str}"
-                )
+        for index, marker in enumerate(markers):
+            draw_id = marker.group(1)
+            start = marker.end()
+            end = markers[index + 1].start() if index + 1 < len(markers) else len(normalized)
+            segment = normalized[start:end]
+
+            # The date is printed immediately before the draw ID on both source
+            # layouts. Restrict the search window to avoid taking a prior draw's date.
+            date_prefix = normalized[max(0, marker.start() - 110):marker.start()]
+            date_matches = list(self._DATE.finditer(date_prefix))
+            if not date_matches:
+                logger.warning("fallback row {} from {} has no date", draw_id, source)
+                continue
+            date_text = date_matches[-1].group(1).replace("-", "/")
+            try:
+                draw_date = datetime.strptime(date_text, "%d/%m/%Y").strftime("%Y-%m-%d")
+            except ValueError:
+                logger.warning("fallback row {} from {} has invalid date {}", draw_id, source, date_text)
                 continue
 
-            numbers = [int(x) for x in re.findall(r"(?<!\d)(\d{1,2})(?!\d)", body)]
-            if len(numbers) < 7:
-                continue
+            # Result numbers occur before the prize table / next draw marker.
+            # Parse only the first seven number tokens after the draw ID.
+            numbers = [int(value) for value in self._NUMBER.findall(segment)]
             result = numbers[:7]
-            if (
-                len(set(result[:6])) != 6
-                or any(n < 1 or n > 55 for n in result)
-                or result[6] in result[:6]
-            ):
+            if not self._valid_result(result):
+                logger.warning("fallback row {} from {} has invalid result {}", draw_id, source, result)
                 continue
-
-            rows.append(
-                {
-                    "date": datetime.strptime(date_str, "%d/%m/%Y").strftime("%Y-%m-%d"),
-                    "id": draw_id,
-                    "result": result,
-                    "process_time": datetime.now().isoformat(),
-                }
-            )
+            rows.append({
+                "date": draw_date,
+                "id": draw_id,
+                "result": result,
+                "process_time": datetime.now().isoformat(),
+                "source": source,
+            })
         return rows
 
-    def _fallback_page_urls(
-        self, run_date_str: str, index_from: int, index_to: int
-    ) -> List[str]:
-        if index_from == 0 and index_to <= 1:
-            return [self.FALLBACK_URL]
-
-        base_date = datetime.strptime(run_date_str, "%Y-%m-%d").date()
-        urls: List[str] = []
-        for page_index in range(index_from, index_to):
-            if page_index == 0:
-                urls.append(self.FALLBACK_URL)
-                continue
-            offset = self.FALLBACK_PAGE_ANCHOR_DAYS + (
-                (page_index - 1) * self.FALLBACK_PAGE_SPAN_DAYS
-            )
-            anchor = base_date - timedelta(days=offset)
-            urls.append(self.FALLBACK_DATE_URL.format(date=anchor.strftime("%d-%m-%Y")))
-        return urls
+    def _fetch_fallback_source(self, url: str) -> List[Dict]:
+        response = requests.get(
+            url,
+            headers={"User-Agent": self.USER_AGENT},
+            timeout=self.REQUEST_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "lxml")
+        text = soup.get_text(" ", strip=True)
+        rows = self._parse_fallback_text(text, source=url.split("/")[2])
+        logger.info("Power 6/55 fallback source={} parsed_rows={}", url, len(rows))
+        if not rows:
+            raise RuntimeError(f"Power 6/55 fallback source returned no validated draws: {url}")
+        return rows
 
     def crawl_fallback(self, run_date_str: str, index_from: int, index_to: int) -> bool:
-        """Use validated public HTML mirror for daily refresh and historical backfill."""
-        urls = self._fallback_page_urls(run_date_str, index_from, index_to)
-        logger.warning(
-            "using Power 6/55 fallback source(s): " + ", ".join(urls)
-        )
+        """Fetch validated rows from independent sources, never from Minh Ngoc."""
+        rows_by_id: Dict[str, Dict] = {}
+        failures = []
+        for url in self.FALLBACK_URLS:
+            try:
+                for row in self._fetch_fallback_source(url):
+                    # Prefer xoso.com.vn when both sources publish the same draw.
+                    rows_by_id.setdefault(row["id"], row)
+            except Exception as exc:
+                failures.append(f"{url}: {exc}")
+                logger.warning("Power 6/55 fallback source failed: {}", failures[-1])
 
-        rows: List[Dict] = []
-        for url in urls:
-            res = requests.get(
-                url,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; vietlott-data/0.2)"},
-                timeout=15,
-            )
-            res.raise_for_status()
-            text = BeautifulSoup(res.text, "lxml").get_text(" ", strip=True)
-            page_rows = self._parse_fallback_text(text)
-            logger.info(f"fallback parsed {len(page_rows)} Power 6/55 draws from {url}")
-            rows.extend(page_rows)
+        if not rows_by_id:
+            raise RuntimeError("All independent Power 6/55 fallback sources failed: " + "; ".join(failures))
 
-        rows = list({row["id"]: row for row in rows}.values())
-        rows.sort(key=lambda row: (row["date"], row["id"]))
-        if not rows:
-            raise RuntimeError("Power 6/55 fallback returned no validated draws")
+        rows = sorted(rows_by_id.values(), key=lambda row: (row["date"], int(row["id"])))
+        import polars as pl
 
-        # Daily refresh is incremental: only persist the next draw after the
-        # current maximum ID. Historical gaps are handled separately by
-        # vietlott-missing and therefore stay out of the daily crawl.
+        raw_path = self.product_config.raw_path
+        current = pl.read_ndjson(raw_path, infer_schema_length=None) if raw_path.exists() else pl.DataFrame()
+        current_ids = set()
+        current_max_id = 0
+        if current.height and "id" in current.columns:
+            current = current.with_columns(pl.col("id").cast(pl.Utf8))
+            current_ids = set(current["id"].to_list())
+            current_max_id = max(int(value) for value in current["id"].to_list())
+
+        selected: List[Dict] = []
+        # Preserve the established operational rule: every crawl refreshes #01394
+        # when a validated independent source still exposes it.
+        correction = rows_by_id.get(self.KNOWN_CORRECTION_ID)
+        if correction is not None:
+            selected.append(correction)
+
         if index_from == 0:
-            import polars as pl
+            unseen = [row for row in rows if int(row["id"]) > current_max_id]
+            if not current.height:
+                # Bootstrap must start at the newest available draw, not the oldest.
+                next_rows = [max(rows, key=lambda row: int(row["id"]))]
+            elif unseen:
+                next_id = min(int(row["id"]) for row in unseen)
+                next_rows = [row for row in unseen if int(row["id"]) == next_id]
+            else:
+                next_rows = []
+            selected.extend(next_rows)
+        else:
+            # Historical source pages are finite; use draw IDs as the stable
+            # backfill cursor, with six draws per source-page step.
+            low_id = max(1, current_max_id - max(index_to, index_from + 1) * 6)
+            high_id = max(1, current_max_id - index_from * 6)
+            selected.extend(row for row in rows if low_id <= int(row["id"]) < high_id)
 
-            current_max_id = 0
-            if self.product_config.raw_path.exists():
-                current = pl.read_ndjson(
-                    self.product_config.raw_path, infer_schema_length=None
-                ).with_columns(pl.col("id").cast(pl.Utf8))
-                if len(current):
-                    current_max_id = max(int(value) for value in current["id"].to_list())
+        # Keep only validated rows, deduplicated by draw ID. Corrections are
+        # upserts; routine crawling adds at most the next unseen draw.
+        selected_by_id = {row["id"]: row for row in selected if self._valid_result(row["result"])}
+        if not selected_by_id:
+            if failures:
+                logger.warning("fallback sources had failures: {}", "; ".join(failures))
+            logger.info("Power 6/55 already current at #{:05d}; no unseen draw found", current_max_id)
+            return True
 
-            new_rows = [row for row in rows if int(row["id"]) > current_max_id]
-            if not new_rows:
-                logger.info(
-                    f"Power 6/55 already up to date at #{current_max_id:05d}; "
-                    "no new draw to store."
-                )
-                return True
-
-            # If the source exposes several unseen draws, persist only the
-            # earliest next draw. The following run will pick up the next one.
-            next_id = min(int(row["id"]) for row in new_rows)
-            rows = [row for row in new_rows if int(row["id"]) == next_id]
-            logger.info(
-                f"incremental Power 6/55 crawl: current=#{current_max_id:05d}, "
-                f"next=#{next_id:05d}"
-            )
-
-        rows = list({row["id"]: row for row in rows}.values())
-        rows.sort(key=lambda row: (row["date"], row["id"]))
+        self._store_fallback_rows(list(selected_by_id.values()))
         logger.info(
-            f"fallback selected {len(rows)} draw(s), latest={rows[-1]['id']}"
+            "Power 6/55 fallback stored ids={} current_max={} sources={}",
+            sorted(selected_by_id), current_max_id, list(self.FALLBACK_URLS),
         )
-        self._store_fallback_rows(rows)
         return True
 
     def _store_fallback_rows(self, rows: List[Dict]) -> None:
         import polars as pl
 
-        current_count = 0
+        raw_path = self.product_config.raw_path
         incoming = pl.DataFrame(rows).with_columns(
             pl.col("id").cast(pl.Utf8),
             pl.col("date").cast(pl.Utf8),
         )
-
-        if self.product_config.raw_path.exists():
-            current = pl.read_ndjson(self.product_config.raw_path).with_columns(
+        if raw_path.exists():
+            current = pl.read_ndjson(raw_path, infer_schema_length=None).with_columns(
                 pl.col("id").cast(pl.Utf8),
                 pl.col("date").cast(pl.Utf8),
             )
-            current_count = len(current)
             incoming_ids = set(incoming["id"].to_list())
-            # Upsert by draw id so a prior malformed/stale row can be corrected.
             retained = current.filter(~pl.col("id").is_in(incoming_ids))
             final = pl.concat([retained, incoming], how="diagonal_relaxed")
         else:
             final = incoming
 
         final = final.unique(subset=["id"], keep="last").sort(["date", "id"])
+        final.write_ndjson(raw_path.absolute())
         logger.info(
-            f"fallback final min_date={final['date'].min()}, max_date={final['date'].max()}, "
-            f"records={current_count}->{len(final)}, diff={len(final) - current_count}"
+            "Power 6/55 fallback upsert min_date={} max_date={} records={}",
+            final["date"].min(), final["date"].max(), len(final),
         )
-        final.write_ndjson(self.product_config.raw_path.absolute())
 
     def process_result(self, params, body, res_json, task_data) -> List[Dict]:
         """Process official Power 6/55 results."""
@@ -214,22 +218,19 @@ class ProductPower655(BaseProduct):
             tds = tr.find_all("td")
             if len(tds) < 3:
                 raise ValueError("Power 6/55 result row is missing required columns")
-            row = {}
-            row["date"] = datetime.strptime(tds[0].text.strip(), "%d/%m/%Y").strftime("%Y-%m-%d")
-            row["id"] = tds[1].text.strip()
-            row["result"] = [
-                int(span.text.strip())
-                for span in tds[2].find_all("span")
-                if span.text.strip() != "|"
-            ]
-            if len(row["result"]) != 7:
-                raise ValueError(f"Power 6/55 row {row['id']} has {len(row['result'])} numbers")
-            if (
-                len(set(row["result"][:6])) != 6
-                or any(n < 1 or n > 55 for n in row["result"])
-                or row["result"][6] in row["result"][:6]
-            ):
+            row = {
+                "date": datetime.strptime(tds[0].text.strip(), "%d/%m/%Y").strftime("%Y-%m-%d"),
+                "id": tds[1].text.strip(),
+                "result": [
+                    int(span.text.strip())
+                    for span in tds[2].find_all("span")
+                    if span.text.strip() != "|"
+                ],
+                "process_time": datetime.now().isoformat(),
+            }
+            if not re.fullmatch(r"\d{5}", row["id"]):
+                raise ValueError(f"Power 6/55 row has invalid draw ID: {row['id']}")
+            if not self._valid_result(row["result"]):
                 raise ValueError(f"Power 6/55 row {row['id']} has an invalid 6+1 result")
-            row["process_time"] = datetime.now().isoformat()
             data.append(row)
         return data
