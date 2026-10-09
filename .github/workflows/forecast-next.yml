@@ -87,9 +87,11 @@ jobs:
       - name: Validate decay hyperparameter on historical validation
         run: python -m src.machine_learning.run_decay_validation
       - name: Generate next-draw forecast
-        run: python -m src.machine_learning.forecast_next --tickets 30 --candidate-pool-size 30 --coverage-rescue-size 0 --ensemble-score-mode full_rank --max-pair-reuse 2
-      - name: Audit candidate-pool coverage
-        run: python -m src.machine_learning.audit_forecast_candidates --last-draws 60 --candidate-pool-size 30 --coverage-rescue-size 8 --ensemble-score-mode full_rank
+        run: python -m src.machine_learning.forecast_next --tickets 30 --candidate-pool-size 30 --coverage-rescue-size 0 --ensemble-score-mode full_rank --max-pair-reuse 2 --max-consecutive-run 3
+      - name: Audit candidate-pool challenger
+        run: |
+          echo "Benchmarking coverage-rescue challenger size 8 against production score-only pool"
+          python -m src.machine_learning.audit_forecast_candidates --last-draws 60 --candidate-pool-size 30 --coverage-rescue-size 8 --ensemble-score-mode full_rank
       - name: Upload forecast artifact
         uses: actions/upload-artifact@v4
         with:
