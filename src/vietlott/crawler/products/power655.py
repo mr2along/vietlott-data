@@ -133,10 +133,11 @@ class ProductPower655(BaseProduct):
         if not rows:
             raise RuntimeError("Power 6/55 fallback returned no validated draws")
 
-        # Daily refresh is incremental: only persist the next draw after the
-        # current maximum ID. Historical gaps are handled separately by
-        # vietlott-missing and therefore stay out of the daily crawl.
-        if index_from == 0:
+        # Only a single-page request [0, 1) is a daily incremental refresh.
+        # A wider range beginning at page 0 is a historical backfill request
+        # from vietlott-missing and must upsert every parsed row, including
+        # rows whose IDs are below or between existing records.
+        if index_from == 0 and index_to <= 1:
             import polars as pl
 
             current_max_id = 0
