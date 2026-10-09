@@ -43,7 +43,7 @@ class ProductPower655(BaseProduct):
     USER_AGENT = "Mozilla/5.0 (compatible; vietlott-data/0.3; +https://github.com/mr2along/vietlott-data)"
 
     _DRAW_MARKER = re.compile(r"(?:Kỳ\s+(?:quay thưởng|mở thưởng)|Kỳ vé)\s*:?\s*#?(\d{5})", re.IGNORECASE)
-    _DATE = re.compile(r"(?<!\\d)(\\d{2}[/-]\\d{2}(?:[/-]\\d{4})?)(?!\\d)")
+    _DATE = re.compile(r"(?<!\d)(\d{2}[/-]\d{2}(?:[/-]\d{4})?)(?!\d)")
     _NUMBER = re.compile(r"(?<!\d)(\d{1,2})(?!\d)")
 
     def _valid_result(self, result: List[int]) -> bool:
