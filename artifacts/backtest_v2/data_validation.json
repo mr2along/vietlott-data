@@ -1,0 +1,14 @@
+{
+  "raw_rows": 1408,
+  "parsed_rows": 1408,
+  "benchmark_rows": 1408,
+  "quarantined_rows": 0,
+  "quarantined_ids": [],
+  "validation_errors": [],
+  "source_ordering_anomalies": [],
+  "id_continuity_gaps": [],
+  "benchmark_sorted": true,
+  "main_numbers_only_for_prediction": true,
+  "special_number_reserved_for_prize_evaluation": true,
+  "expected_historical_incomplete_ids": []
+}
