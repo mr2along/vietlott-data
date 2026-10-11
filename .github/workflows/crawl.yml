@@ -106,18 +106,21 @@ jobs:
             fi
           done
           echo "Power 6/55 pipeline remains authoritative; optional product failures do not block downstream Power 6/55 evaluation."
+      - name: Validate Power 6/55 data
+        # Run as a script so normalization remains independent of optional ML packages.
+        run: python src/machine_learning/normalize_power655.py
+      - name: Update realized forecast results
+        # This evaluator uses only the Python standard library when run as a script.
+        run: python src/machine_learning/evaluate_forecast_results.py
       - name: Regenerate documentation
         run: |
           python src/render_readme.py
           python src/render_docs.py
-      - name: Validate Power 6/55 data
-        # Run as a script so normalization remains independent of optional ML packages.
-        run: python src/machine_learning/normalize_power655.py
       - name: Commit updated data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data README.md docs/index.html src/machine_learning/README.md artifacts/backtest_v2/power655_benchmark.jsonl artifacts/backtest_v2/power655_incomplete.jsonl artifacts/backtest_v2/data_validation.json || true
+          git add data README.md docs/index.html src/machine_learning/README.md artifacts/backtest_v2/power655_benchmark.jsonl artifacts/backtest_v2/power655_incomplete.jsonl artifacts/backtest_v2/data_validation.json artifacts/forecast/results/forecast_results.json artifacts/forecast/results/forecast_results.md || true
           if git diff --cached --quiet; then echo "No data changes."; exit 0; fi
           git commit -m "chore(data): update Vietlott data"
           git push
