@@ -242,7 +242,7 @@ def main() -> None:
                 f"prize {result['prize_vnd']:,} VND ({result['prize_type']})"
             )
 
-    (out / "forecast_results.md").write_text("\\n".join(md) + "\\n", encoding="utf-8")
+    (out / "forecast_results.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     print(json.dumps(report["summary"], ensure_ascii=False, indent=2))
 
 
