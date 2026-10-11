@@ -341,11 +341,13 @@ jobs:
           else
             cp artifacts/forecast/next_power655.json "artifacts/forecast/history/forecast_${target_id}.json"
           fi
+      - name: Update README forecast dashboard
+        run: python src/render_forecast_readme.py
       - name: Commit data and forecast archive
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/power655.jsonl artifacts/forecast/next_power655.json artifacts/forecast/history/
+          git add data/power655.jsonl artifacts/forecast/next_power655.json artifacts/forecast/history/ README.md
           if git diff --cached --quiet; then echo "No new forecast archive."; exit 0; fi
           git commit -m "chore(forecast): precompute Power 6/55 production forecast"
           git push
@@ -491,11 +493,13 @@ jobs:
           else
             cp artifacts/forecast/next_power655.json "artifacts/forecast/history/forecast_${target_id}.json"
           fi
+      - name: Update README forecast dashboard
+        run: python src/render_forecast_readme.py
       - name: Commit verification refresh and fallback forecast
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/power655.jsonl artifacts/forecast/next_power655.json artifacts/forecast/history/
+          git add data/power655.jsonl artifacts/forecast/next_power655.json artifacts/forecast/history/ README.md
           if git diff --cached --quiet; then echo "Verification passed; no changes to commit."; exit 0; fi
           git commit -m "chore(forecast): verify Power 6/55 production forecast"
           git push
@@ -573,13 +577,15 @@ jobs:
           PY
       - name: Evaluate stored forecasts
         run: python -m src.machine_learning.evaluate_forecast_results
+      - name: Update README forecast dashboard
+        run: python src/render_forecast_readme.py
       - name: Publish result report to GitHub Actions Summary
         run: cat artifacts/forecast/results/forecast_results.md >> "$GITHUB_STEP_SUMMARY"
       - name: Commit evaluation report
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add artifacts/forecast/results/
+          git add artifacts/forecast/results/ README.md
           if git diff --cached --quiet; then echo "No evaluation changes."; exit 0; fi
           git commit -m "chore(forecast): update realized forecast results"
           git push
