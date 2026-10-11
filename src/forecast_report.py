@@ -110,7 +110,10 @@ def _upcoming_section(payload: dict[str, Any], latest_draw_id: int | None) -> li
     lines = [
         f"### Next-draw forecast — draw **#{_draw_id(target)}**",
         "",
-        f"- **Target date:** {payload.get('target_draw_date', 'unknown')} ({payload.get('target_draw_weekday', 'unknown')})",
+        (
+            f"- **Target date:** {payload.get('target_draw_date', 'unknown')} "
+            f"({payload.get('target_draw_weekday', 'unknown')})"
+        ),
         f"- **Data cutoff:** draw #{_draw_id(as_of.get('id'))} dated {as_of.get('date', 'unknown')}",
         f"- **Generated (UTC):** {payload.get('forecast_generated_at_utc', 'unknown')}",
         "",
@@ -266,7 +269,10 @@ def generate_forecast_section(root: Path | None = None) -> str:
     results = _read_json(root / "artifacts/forecast/results/forecast_results.json")
 
     lines = [
-        "Forecasts are published for research and retrospective evaluation only. Lottery draws are random; model outputs do not guarantee future results.",
+        (
+            "Forecasts are published for research and retrospective evaluation only. Lottery draws "
+            "are random; model outputs do not guarantee future results."
+        ),
         "",
     ]
     lines.extend(_upcoming_section(forecast, latest_draw_id))
