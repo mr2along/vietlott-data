@@ -56,6 +56,26 @@ jobs:
         run: python -m compileall -q src
       - name: Run unit and data tests
         run: python -m pytest src/vietlott/tests src/machine_learning/tests -q
+      - name: Smoke-test forecast evaluation and README integration
+        run: |
+          python src/machine_learning/evaluate_forecast_results.py
+          python src/render_readme.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result_path = Path("artifacts/forecast/results/forecast_results.json")
+          report = json.loads(result_path.read_text(encoding="utf-8"))
+          readme = Path("README.md").read_text(encoding="utf-8")
+          assert "Forecast sequence and outcome for each evaluated draw" in readme
+          assert "Next-draw forecast" in readme
+          assert isinstance(report.get("evaluated_draws"), list)
+          print(
+              "README_FORECAST_REPORT_OK",
+              f"evaluated_draws={len(report['evaluated_draws'])}",
+              f"pending={len(report.get('pending_target_draw_ids', []))}",
+          )
+          PY
 
       - name: Smoke-test live Power 6/55 fallback sources
         run: |
