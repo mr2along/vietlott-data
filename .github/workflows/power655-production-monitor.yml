@@ -593,7 +593,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md artifacts/forecast/results/
+          git add data/power655.jsonl README.md artifacts/forecast/results/
           if git diff --cached --quiet; then echo "No evaluation changes."; exit 0; fi
           git commit -m "chore(forecast): update realized forecast results"
           git push
