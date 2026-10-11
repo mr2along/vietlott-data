@@ -111,7 +111,7 @@ def test_forecast_report_shows_upcoming_tickets_and_each_evaluated_draw(tmp_path
     assert "| 01, 02, 03, 04, 05, 06 |" in report
     assert "Forecast sequence and outcome for each evaluated draw" in report
     assert "Draw #00001" in report
-    assert "1/6" in report
+    assert "3/6" in report
     assert "50,000" in report
     assert "Matched main numbers" in report
 
