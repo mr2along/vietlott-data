@@ -177,7 +177,7 @@ def main() -> None:
         },
     }
     (out / "forecast_results.json").write_text(
-        json.dumps(report, ensure_ascii=False, indent=2) + "\\n",
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
 
