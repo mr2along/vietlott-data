@@ -1,6 +1,12 @@
 import json
 
-from src.machine_learning.evaluate_forecast_results import PRIZES, TICKET_PRICE, evaluate_portfolio, main, ticket_result
+from src.machine_learning.evaluate_forecast_results import (
+    PRIZES,
+    TICKET_PRICE,
+    evaluate_portfolio,
+    main,
+    ticket_result,
+)
 
 def test_ticket_result_counts_three_main_hits():
     draw = {"main": [1, 2, 3, 4, 5, 6], "special": 7}
@@ -15,6 +21,7 @@ def test_ticket_result_five_plus_special_gets_jackpot2():
     assert result["special_match"] is True
     assert result["prize_type"] == "jackpot2"
     assert result["prize_vnd"] == PRIZES["jackpot2"]
+
 
 def test_portfolio_counts_ge3_and_gain():
     draw = {"main": [1, 2, 3, 4, 5, 6], "special": 7}
