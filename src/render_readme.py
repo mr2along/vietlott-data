@@ -453,6 +453,10 @@ def main():
     try:
         generator = ReadmeGenerator()
         generator.save_readme()
+        # Keep forecast/results visible even when the daily data renderer rebuilds README.
+        from render_forecast_readme import update_readme
+
+        update_readme()
         logger.info("README generation completed successfully!")
     except Exception as e:
         logger.error(f"Failed to generate README: {e}")
