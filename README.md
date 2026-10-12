@@ -32,7 +32,7 @@
 
 - [🔗 Links](#-links)
 - [🎯 Supported Lottery Products](#-supported-lottery-products)
-- [Predictions](#predictions)
+- [Predictions](#-predictions)
 - [📊 Data Statistics](#-data-statistics)
 - [📈 Power 6/55 Analysis](#-power-655-analysis)
   - [📅 Recent Results](#-recent-results)
@@ -47,51 +47,9 @@
 
 ## Predictions
 
-Forecasts are produced for research and retrospective evaluation only. Lottery draws are random; model outputs are not guarantees of future results.
+Predicitons models are at [/src/predictions](./src/machine_learning/).
 
-### Latest evaluated forecast
-
-| Field | Result |
-|---|---|
-| Target draw | **#01409 — 2026-10-10** |
-| Forecast generated (UTC) | 2026-10-09 18:57:00 |
-| Data available to the model | Through draw **#01408** (1,408 rows) |
-| Actual main numbers | **14, 17, 21, 23, 24, 39** |
-| Actual special number | **30** (reported separately; not used as a model feature) |
-
-The four single-line model predictions each matched **0 of 6** main numbers:
-
-| Model | Predicted numbers | Main matches |
-|---|---|---:|
-| Bayesian | 7, 8, 11, 13, 16, 22 | 0/6 |
-| ExponentialDecay | 5, 7, 11, 13, 16, 18 | 0/6 |
-| LogisticProbability | 7, 11, 16, 22, 25, 32 | 0/6 |
-| RankEnsemble | 5, 7, 11, 13, 16, 22 | 0/6 |
-
-For the 30-ticket portfolio, one ticket matched three main numbers: **[5, 14, 16, 21, 33, 39]** matched **14, 21, 39** and recorded a payout of **50,000 VND**. With an assumed ticket price of 10,000 VND, that draw's portfolio cost was 300,000 VND, net result **−250,000 VND** and ROI **−83.33%**.
-
-### Rolling realized results — latest 5 evaluated draws
-
-| Draw | Date | Actual main numbers | Special | Tickets with ≥3 main matches | Recorded payout (VND) |
-|---:|---|---|---:|---:|---:|
-| 01405 | 2026-10-01 | 4, 5, 13, 34, 52, 55 | 15 | 0 | 0 |
-| 01406 | 2026-10-03 | 7, 11, 13, 16, 18, 54 | 41 | 2 | 100,000 |
-| 01407 | 2026-10-06 | 6, 7, 18, 20, 24, 27 | 1 | 1 | 50,000 |
-| 01408 | 2026-10-08 | 1, 7, 12, 27, 31, 52 | 6 | 0 | 0 |
-| 01409 | 2026-10-10 | 14, 17, 21, 23, 24, 39 | 30 | 1 | 50,000 |
-
-### Aggregate portfolio performance
-
-The evaluation report currently contains **5 completed draws** and **0 pending forecasts**. Each strategy evaluates 30 tickets per draw (150 tickets total per strategy).
-
-| Strategy | Draws | Tickets | Tickets with ≥3 matches | ≥3-match rate | Recorded payout | Cost* | Net* | ROI* |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| PortfolioEnsemble | 5 | 150 | 4 | 2.67% | 200,000 VND | 1,500,000 VND | −1,300,000 VND | −86.67% |
-| UnseenPortfolioEnsemble | 5 | 150 | 4 | 2.67% | 200,000 VND | 1,500,000 VND | −1,300,000 VND | −86.67% |
-
-\*Cost/net/ROI are calculated using 10,000 VND per ticket and the payout values in the evaluation artifact. The observed sample is small and does **not** establish a predictive advantage.
-
-**Reports and artifacts:** [Full ticket-level evaluation report](./artifacts/forecast/results/forecast_results.md) · [Machine-readable results](./artifacts/forecast/results/forecast_results.json) · [Forecast JSON for draw #01409](./artifacts/forecast/next_power655.json)
+For background on these models, see the [Machine Learning README](./src/machine_learning/).
 
 ## 📊 Data Statistics
 
