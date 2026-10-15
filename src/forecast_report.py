@@ -124,9 +124,44 @@ def _upcoming_section(payload: dict[str, Any], latest_draw_id: int | None) -> li
         "| Model | Predicted numbers |",
         "|---|---|",
     ]
-    for name in ("Bayesian", "ExponentialDecay", "LogisticProbability", "RankEnsemble"):
+    for name in (
+        "Bayesian", "ExponentialDecay", "LogisticProbability", "RankEnsemble",
+        "PositionWiseEnsemble",
+    ):
         if predictions.get(name):
             lines.append(f"| {name} | {_numbers(predictions[name])} |")
+
+    analysis = payload.get("positionwise_analysis")
+    positions = analysis.get("positions", []) if isinstance(analysis, dict) else []
+    if isinstance(positions, list) and positions:
+        lines += [
+            "",
+            "#### Position-by-position forecast",
+            "",
+            (
+                "Each slot is trained on that same sorted position in previous draws. "
+                "The final combination is constrained to six distinct, increasing numbers."
+            ),
+            "",
+            "| Position | Selected number | Highest-scoring candidates from that position |",
+            "|---:|---:|---|",
+        ]
+        for item in positions:
+            if not isinstance(item, dict):
+                continue
+            candidates = item.get("top_candidates", [])
+            candidate_text = ", ".join(
+                f"{int(candidate['number']):02d} ({float(candidate['score']):.4f})"
+                for candidate in candidates
+                if isinstance(candidate, dict)
+                and str(candidate.get("number", "")).isdigit()
+                and isinstance(candidate.get("score"), (int, float))
+            )
+            lines.append(
+                f"| {item.get('position', '—')} | {int(item.get('selected_number', 0)):02d} | "
+                f"{candidate_text or '—'} |"
+            )
+
     for name, label in (
         ("PortfolioEnsemble", "PortfolioEnsemble"),
         ("UnseenPortfolioEnsemble", "UnseenPortfolioEnsemble"),
@@ -223,7 +258,10 @@ def _evaluated_section(report: dict[str, Any]) -> list[str]:
             "|---|---|---:|---|---:|---|",
         ]
         models = row.get("single_models", {}) if isinstance(row.get("single_models"), dict) else {}
-        for name in ("Bayesian", "ExponentialDecay", "LogisticProbability", "RankEnsemble"):
+        for name in (
+            "Bayesian", "ExponentialDecay", "LogisticProbability", "RankEnsemble",
+            "PositionWiseEnsemble",
+        ):
             result = models.get(name)
             if not isinstance(result, dict):
                 continue
@@ -234,6 +272,46 @@ def _evaluated_section(report: dict[str, Any]) -> list[str]:
                 f"{_numbers(matched) if matched else '—'} | {_money(result.get('prize_vnd', 0))} | "
                 f"{result.get('prize_type', 'none')} |"
             )
+
+        positionwise = row.get("positionwise_analysis")
+        positionwise_positions = (
+            positionwise.get("positions", []) if isinstance(positionwise, dict) else []
+        )
+        positionwise_result = models.get("PositionWiseEnsemble")
+        forecast_by_position = (
+            positionwise_result.get("forecast_numbers", [])
+            if isinstance(positionwise_result, dict) else []
+        )
+        if positionwise_positions and len(forecast_by_position) == 6 and len(actual_main) == 6:
+            actual_by_position = sorted(actual_main)
+            lines += [
+                "",
+                "**Position-by-position outcome — PositionWiseEnsemble**",
+                "",
+                "| Position | Forecast | Actual at same position | Exact position hit | Top candidates at forecast time |",
+                "|---:|---:|---:|---|---|",
+            ]
+            for item in positionwise_positions:
+                if not isinstance(item, dict):
+                    continue
+                index = int(item.get("position", 0)) - 1
+                if not 0 <= index < 6:
+                    continue
+                candidates = item.get("top_candidates", [])
+                candidate_text = ", ".join(
+                    f"{int(candidate['number']):02d} ({float(candidate['score']):.4f})"
+                    for candidate in candidates
+                    if isinstance(candidate, dict)
+                    and str(candidate.get("number", "")).isdigit()
+                    and isinstance(candidate.get("score"), (int, float))
+                )
+                forecast_number = int(forecast_by_position[index])
+                actual_number = actual_by_position[index]
+                lines.append(
+                    f"| {index + 1} | {forecast_number:02d} | {actual_number:02d} | "
+                    f"{'Yes' if forecast_number == actual_number else 'No'} | {candidate_text or '—'} |"
+                )
+
         for key, label in (
             ("portfolio_ensemble", "PortfolioEnsemble"),
             ("unseen_portfolio_ensemble", "UnseenPortfolioEnsemble"),
