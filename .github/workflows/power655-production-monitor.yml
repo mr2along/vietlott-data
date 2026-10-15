@@ -328,7 +328,9 @@ jobs:
           assert target_id == latest_id + 1, (latest_id, target_id)
           assert payload.get("predictions", {}).get("PortfolioEnsemble"), "PortfolioEnsemble forecast missing"
           assert payload.get("predictions", {}).get("UnseenPortfolioEnsemble"), "UnseenPortfolioEnsemble forecast missing"
-          print(f"FORECAST_TARGET_OK=#{target_id} latest_data=#{latest_id}")
+          assert len(payload.get("predictions", {}).get("PositionWiseEnsemble", [])) == 6
+          assert len(payload.get("positionwise_analysis", {}).get("positions", [])) == 6
+          print(f"FORECAST_TARGET_OK=#{target_id} latest_data=#{latest_id} positionwise=6")
           PY
       - name: Publish forecast report
         run: |
