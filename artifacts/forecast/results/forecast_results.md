@@ -1,7 +1,7 @@
 # Power 6/55 Forecast Results
 
 - Evaluated draws: **7**
-- Pending forecasts: **0**
+- Pending forecasts: **1**
 
 | Strategy | Draws | Tickets | >=3 | >=3 rate | Gain (VND) | Net (VND) | ROI |
 |---|---:|---:|---:|---:|---:|---:|---:|
