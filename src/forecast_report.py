@@ -162,6 +162,32 @@ def _upcoming_section(payload: dict[str, Any], latest_draw_id: int | None) -> li
                 f"{candidate_text or '—'} |"
             )
 
+    comparison = payload.get("positionwise_model_comparison")
+    components = comparison.get("components", {}) if isinstance(comparison, dict) else {}
+    component_names = [
+        "PositionWiseBayesian",
+        "PositionWiseExponentialDecay",
+        "PositionWiseRecent",
+        "PositionWiseEnsemble",
+    ]
+    if isinstance(components, dict) and any(name in components for name in component_names):
+        lines += [
+            "",
+            "#### Compare previous model families at each sorted position",
+            "",
+            "Each component below is recalculated from the historical value at the same sorted position; it is not simply the original unordered six-number ranking.",
+            "",
+            "| Position | Bayesian slot model | Exponential-decay slot model | Recent-slot model | Position-wise ensemble |",
+            "|---:|---:|---:|---:|---:|",
+        ]
+        for index in range(6):
+            values = []
+            for name in component_names:
+                component = components.get(name, {})
+                numbers = component.get("predicted_numbers", []) if isinstance(component, dict) else []
+                values.append(f"{int(numbers[index]):02d}" if len(numbers) > index else "—")
+            lines.append(f"| {index + 1} | {values[0]} | {values[1]} | {values[2]} | {values[3]} |")
+
     for name, label in (
         ("PortfolioEnsemble", "PortfolioEnsemble"),
         ("UnseenPortfolioEnsemble", "UnseenPortfolioEnsemble"),
