@@ -78,3 +78,31 @@ def test_positionwise_first_and_last_slots_learn_their_own_history():
     last_candidates = {x["number"] for x in details["positions"][5]["top_candidates"]}
     assert first_candidates.intersection({1, 2, 3})
     assert last_candidates.intersection({49, 50, 51, 52, 53, 54, 55})
+
+
+
+def test_component_predictions_apply_each_slot_model_independently():
+    df = _make_history()
+    target = df["date"].iloc[-1] + timedelta(days=3)
+    model = PositionWiseEnsembleStrategy(df)
+
+    comparison = model.component_predictions(target)
+    components = comparison["components"]
+
+    assert set(components) == {
+        "PositionWiseBayesian",
+        "PositionWiseExponentialDecay",
+        "PositionWiseRecent",
+        "PositionWiseEnsemble",
+    }
+    assert comparison["history_draws"] == len(df)
+    for component in components.values():
+        numbers = component["predicted_numbers"]
+        assert len(numbers) == 6
+        assert numbers == sorted(numbers)
+        assert len(set(numbers)) == 6
+        assert len(component["positions"]) == 6
+        assert [item["selected_number"] for item in component["positions"]] == numbers
+        for index, item in enumerate(component["positions"]):
+            assert item["position"] == index + 1
+            assert item["top_candidates"]
