@@ -195,6 +195,78 @@ class PositionWiseEnsembleStrategy(PredictModel):
             raise RuntimeError("Position-wise decoder failed to produce six numbers")
         return list(best[1])
 
+    def component_predictions(self, target_date: date) -> dict[str, Any]:
+        """Forecast all six ordered slots with separate historical model components.
+
+        The Bayesian component uses long-run slot counts with the theoretical
+        order-statistic prior; the decay component uses exponentially weighted
+        slot counts; the recent component uses the last N draws. Each component
+        is decoded independently into a valid increasing six-number sequence.
+        """
+        target = pd.Timestamp(target_date).date()
+        history = [row for row in self._history_rows if row["date"] < target]
+        recent = history[-self.recent_draws :]
+        decay_lambda = math.log(2.0) / self.decay_half_life_days
+        weights = [
+            math.exp(-decay_lambda * max(0, (target - row["date"]).days))
+            for row in history
+        ]
+        weighted_mass = sum(weights)
+        component_distributions: dict[str, list[dict[int, float]]] = {
+            "PositionWiseBayesian": [],
+            "PositionWiseExponentialDecay": [],
+            "PositionWiseRecent": [],
+        }
+
+        for position in range(self.number_predict):
+            prior = self._theoretical_prior(position)
+            long_counts: Counter[int] = Counter(row["main"][position] for row in history)
+            recent_counts: Counter[int] = Counter(row["main"][position] for row in recent)
+            decay_counts: Counter[int] = Counter()
+            for row, weight in zip(history, weights):
+                decay_counts[row["main"][position]] += weight
+
+            component_distributions["PositionWiseBayesian"].append(
+                self._smoothed_distribution(long_counts, float(len(history)), prior)
+            )
+            component_distributions["PositionWiseExponentialDecay"].append(
+                self._smoothed_distribution(decay_counts, weighted_mass, prior)
+            )
+            component_distributions["PositionWiseRecent"].append(
+                self._smoothed_distribution(recent_counts, float(len(recent)), prior)
+            )
+
+        result: dict[str, Any] = {}
+        for name, distributions in component_distributions.items():
+            numbers = self._best_increasing_sequence(distributions)
+            result[name] = {
+                "predicted_numbers": numbers,
+                "positions": [
+                    {
+                        "position": index + 1,
+                        "selected_number": numbers[index],
+                        "selected_score": round(float(distributions[index][numbers[index]]), 8),
+                        "top_candidates": [
+                            {"number": number, "score": round(float(distributions[index][number]), 8)}
+                            for number in sorted(
+                                distributions[index],
+                                key=lambda value: (-distributions[index][value], value),
+                            )[:5]
+                        ],
+                    }
+                    for index in range(self.number_predict)
+                ],
+            }
+        result["PositionWiseEnsemble"] = {
+            "predicted_numbers": self.predict(target),
+            "positions": self.position_details(target)["positions"],
+        }
+        return {
+            "method": "Each component is fitted to the same sorted slot in historical draws; each ticket is decoded to six distinct ascending numbers.",
+            "history_draws": len(history),
+            "components": result,
+        }
+
     def predict(self, target_date: date) -> list[int]:
         """Predict one number per historical sorted position."""
         target = pd.Timestamp(target_date).date()
