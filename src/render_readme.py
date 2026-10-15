@@ -13,6 +13,7 @@ from typing import Optional
 import polars as pl
 from loguru import logger
 
+from forecast_report import generate_forecast_section
 from vietlott.config.products import get_config
 
 
@@ -400,6 +401,7 @@ class ReadmeGenerator:
         df_power655 = self._load_lottery_data("power_655")
 
         # Generate all sections
+        prediction_report = generate_forecast_section(Path.cwd())
         header = self.templates.get_header()
         toc = self.templates.get_toc()
         data_overview = self._get_data_overview()
@@ -414,9 +416,7 @@ class ReadmeGenerator:
 
 ## Predictions
 
-Predicitons models are at [/src/predictions](./src/machine_learning/).
-
-For background on these models, see the [Machine Learning README](./src/machine_learning/).
+{prediction_report}
 
 ## 📊 Data Statistics
 

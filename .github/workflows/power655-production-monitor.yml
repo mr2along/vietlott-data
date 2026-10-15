@@ -56,6 +56,26 @@ jobs:
         run: python -m compileall -q src
       - name: Run unit and data tests
         run: python -m pytest src/vietlott/tests src/machine_learning/tests -q
+      - name: Smoke-test forecast evaluation and README integration
+        run: |
+          python src/machine_learning/evaluate_forecast_results.py
+          python src/render_readme.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result_path = Path("artifacts/forecast/results/forecast_results.json")
+          report = json.loads(result_path.read_text(encoding="utf-8"))
+          readme = Path("README.md").read_text(encoding="utf-8")
+          assert "Forecast sequence and outcome for each evaluated draw" in readme
+          assert "Next-draw forecast" in readme
+          assert isinstance(report.get("evaluated_draws"), list)
+          print(
+              "README_FORECAST_REPORT_OK",
+              f"evaluated_draws={len(report['evaluated_draws'])}",
+              f"pending={len(report.get('pending_target_draw_ids', []))}",
+          )
+          PY
 
       - name: Smoke-test live Power 6/55 fallback sources
         run: |
@@ -341,11 +361,17 @@ jobs:
           else
             cp artifacts/forecast/next_power655.json "artifacts/forecast/history/forecast_${target_id}.json"
           fi
+          # Keep the published forecast identical to the immutable per-draw archive.
+          cp "artifacts/forecast/history/forecast_${target_id}.json" artifacts/forecast/next_power655.json
+      - name: Evaluate completed forecasts and render README
+        run: |
+          python src/machine_learning/evaluate_forecast_results.py
+          python src/render_readme.py
       - name: Commit data and forecast archive
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/power655.jsonl artifacts/forecast/next_power655.json artifacts/forecast/history/
+          git add data/power655.jsonl README.md artifacts/forecast/next_power655.json artifacts/forecast/history/ artifacts/forecast/results/
           if git diff --cached --quiet; then echo "No new forecast archive."; exit 0; fi
           git commit -m "chore(forecast): precompute Power 6/55 production forecast"
           git push
@@ -491,11 +517,17 @@ jobs:
           else
             cp artifacts/forecast/next_power655.json "artifacts/forecast/history/forecast_${target_id}.json"
           fi
+          # Keep the published forecast identical to the immutable per-draw archive.
+          cp "artifacts/forecast/history/forecast_${target_id}.json" artifacts/forecast/next_power655.json
+      - name: Evaluate completed forecasts and render README
+        run: |
+          python src/machine_learning/evaluate_forecast_results.py
+          python src/render_readme.py
       - name: Commit verification refresh and fallback forecast
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/power655.jsonl artifacts/forecast/next_power655.json artifacts/forecast/history/
+          git add data/power655.jsonl README.md artifacts/forecast/next_power655.json artifacts/forecast/history/ artifacts/forecast/results/
           if git diff --cached --quiet; then echo "Verification passed; no changes to commit."; exit 0; fi
           git commit -m "chore(forecast): verify Power 6/55 production forecast"
           git push
@@ -517,10 +549,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install package
+      - name: Install package and ML dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
+          pip install -e ".[ml]"
       - name: Refresh and normalize result data incrementally
         run: |
           set -euo pipefail
@@ -573,13 +605,15 @@ jobs:
           PY
       - name: Evaluate stored forecasts
         run: python -m src.machine_learning.evaluate_forecast_results
+      - name: Refresh README with forecast sequences and realized outcomes
+        run: python src/render_readme.py
       - name: Publish result report to GitHub Actions Summary
         run: cat artifacts/forecast/results/forecast_results.md >> "$GITHUB_STEP_SUMMARY"
       - name: Commit evaluation report
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add artifacts/forecast/results/
+          git add data/power655.jsonl README.md artifacts/forecast/results/
           if git diff --cached --quiet; then echo "No evaluation changes."; exit 0; fi
           git commit -m "chore(forecast): update realized forecast results"
           git push
