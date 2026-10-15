@@ -90,16 +90,6 @@ jobs:
         run: python -m src.machine_learning.forecast_next --tickets 30 --candidate-pool-size 30 --coverage-rescue-size 0 --ensemble-score-mode full_rank --max-pair-reuse 2
       - name: Audit candidate-pool coverage
         run: python -m src.machine_learning.audit_forecast_candidates --last-draws 60 --candidate-pool-size 30 --coverage-rescue-size 8 --ensemble-score-mode full_rank
-      - name: Run position-wise ROI walk-forward backtest
-        run: python -m src.machine_learning.backtest_positionwise_roi
-      - name: Upload position-wise ROI backtest
-        uses: actions/upload-artifact@v4
-        with:
-          name: positionwise-roi-backtest
-          path: |
-            artifacts/backtest_v2/positionwise_roi_backtest.json
-            artifacts/backtest_v2/positionwise_roi_backtest.md
-          if-no-files-found: error
       - name: Upload forecast artifact
         uses: actions/upload-artifact@v4
         with:
@@ -111,4 +101,35 @@ jobs:
         with:
           name: next-power655-candidate-audit
           path: artifacts/audit/forecast_candidate_coverage.json
+          if-no-files-found: error
+
+  positionwise-roi:
+    name: Position-wise ROI walk-forward backtest
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[ml]" pytest
+          pip install pandas numpy scikit-learn
+      - name: Normalize Power 6/55 data
+        run: python -m src.machine_learning.normalize_power655
+      - name: Compile Python sources
+        run: python -m compileall -q src
+      - name: Run position-wise ROI walk-forward backtest
+        run: python -m src.machine_learning.backtest_positionwise_roi
+      - name: Upload position-wise ROI backtest
+        uses: actions/upload-artifact@v4
+        with:
+          name: positionwise-roi-backtest
+          path: |
+            artifacts/backtest_v2/positionwise_roi_backtest.json
+            artifacts/backtest_v2/positionwise_roi_backtest.md
           if-no-files-found: error
