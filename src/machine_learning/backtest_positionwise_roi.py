@@ -74,20 +74,63 @@ def _summary(
     )
 
 
+def _position_accuracy(
+    draws: Sequence[dict[str, Any]],
+    model_names: Sequence[str],
+) -> dict[str, Any]:
+    """Count exact slot hits using sorted actual numbers for every ticket model."""
+    report: dict[str, Any] = {}
+    for name in model_names:
+        slot_hits = [0] * 6
+        evaluated = [0] * 6
+        all_six_exact = 0
+        for draw in draws:
+            actual = sorted(int(value) for value in draw["actual_main"])
+            forecasts = draw.get("forecasts", {})
+            predicted = forecasts.get(name)
+            if not isinstance(predicted, list) or len(predicted) != 6:
+                continue
+            for index, (guess, truth) in enumerate(zip(predicted, actual)):
+                evaluated[index] += 1
+                if int(guess) == truth:
+                    slot_hits[index] += 1
+            if [int(value) for value in predicted] == actual:
+                all_six_exact += 1
+        report[name] = {
+            "draws": min(evaluated) if evaluated else 0,
+            "all_six_exact_draws": all_six_exact,
+            "positions": [
+                {
+                    "position": index + 1,
+                    "exact_hits": slot_hits[index],
+                    "evaluated": evaluated[index],
+                    "hit_rate_pct": (
+                        100.0 * slot_hits[index] / evaluated[index]
+                        if evaluated[index] else 0.0
+                    ),
+                }
+                for index in range(6)
+            ],
+        }
+    return report
+
+
 def run_backtest(
     rows: list[dict[str, Any]],
     min_history: int | None = None,
     seed: int = DEFAULT_SEED,
 ) -> dict[str, Any]:
-    """Run expanding walk-forward predictions and calculate comparable ROI."""
+    """Compare position-specific component models with a seeded random baseline.
+
+    All strategies receive one ticket per evaluated draw, the same target draws,
+    and the same prize configuration. Each target forecast only sees prior dates.
+    """
     ordered = sorted(rows, key=lambda row: (row["date"], row["id"]))
     if min_history is None:
         min_history = max(100, int(len(ordered) * 0.10))
     if min_history < 1 or min_history >= len(ordered) - 1:
         raise ValueError(f"min_history must be in [1, {len(ordered) - 2}]")
 
-    # The model stores the full timeline but filters strictly to date < target
-    # inside score_positions; the explicit test guards against future leakage.
     model_df = pd.DataFrame(
         [{"date": row["date"], "result": row["result"][:6]} for row in ordered]
     )
@@ -95,30 +138,54 @@ def run_backtest(
     rng = random.Random(seed)
 
     eligible_rows = ordered[min_history:]
+    model_names = [
+        "PositionWiseBayesian",
+        "PositionWiseExponentialDecay",
+        "PositionWiseRecent",
+        "PositionWiseEnsemble",
+        "RandomOneTicket",
+    ]
+    tickets_by_model: dict[str, list[list[list[int]]]] = {
+        name: [] for name in model_names
+    }
     actual_results: list[list[int]] = []
-    position_tickets: list[list[list[int]]] = []
-    random_tickets: list[list[list[int]]] = []
     per_draw: list[dict[str, Any]] = []
 
     for index in range(min_history, len(ordered)):
         target = ordered[index]
-        prediction = model.predict(target["date"])
-        if len(prediction) != 6 or prediction != sorted(set(prediction)):
-            raise AssertionError(f"Invalid position-wise prediction for #{target['id']}: {prediction}")
-        if any(number < 1 or number > 55 for number in prediction):
-            raise AssertionError(f"Out-of-range prediction for #{target['id']}: {prediction}")
+        comparison = model.component_predictions(target["date"])
+        forecasts: dict[str, list[int]] = {
+            name: [int(value) for value in detail["predicted_numbers"]]
+            for name, detail in comparison["components"].items()
+        }
+
+        for name in model_names[:-1]:
+            prediction = forecasts.get(name)
+            if (
+                prediction is None
+                or len(prediction) != 6
+                or prediction != sorted(set(prediction))
+                or any(number < 1 or number > 55 for number in prediction)
+            ):
+                raise AssertionError(
+                    f"Invalid {name} prediction for #{target['id']}: {prediction}"
+                )
 
         random_ticket = sorted(rng.sample(range(1, 56), 6))
+        forecasts["RandomOneTicket"] = random_ticket
         actual_results.append(list(target["result"]))
-        position_tickets.append([prediction])
-        random_tickets.append([random_ticket])
+        for name in model_names:
+            tickets_by_model[name].append([forecasts[name]])
+
+        actual_main = sorted(int(value) for value in target["result"][:6])
         per_draw.append(
             {
                 "draw_id": target["id"],
                 "date": target["date"].isoformat(),
-                "forecast": prediction,
+                "forecasts": forecasts,
+                "forecast": forecasts["PositionWiseEnsemble"],
                 "random_baseline": random_ticket,
-                "actual_main": sorted(target["result"][:6]),
+                "actual_main": actual_main,
                 "special": target["result"][6],
             }
         )
@@ -127,97 +194,128 @@ def run_backtest(
         raise AssertionError("Backtest lost eligible draws")
 
     full = {
-        "PositionWiseEnsemble": _summary("PositionWiseEnsemble", actual_results, position_tickets),
-        "RandomOneTicket": _summary("RandomOneTicket", actual_results, random_tickets),
+        name: _summary(name, actual_results, tickets_by_model[name])
+        for name in model_names
     }
     holdout_start = max(0, int(len(per_draw) * 0.85))
+    holdout_draws = per_draw[holdout_start:]
     holdout_results = actual_results[holdout_start:]
-    holdout_position = position_tickets[holdout_start:]
-    holdout_random = random_tickets[holdout_start:]
     tail_holdout = {
-        "start_draw_id": per_draw[holdout_start]["draw_id"] if per_draw[holdout_start:] else None,
-        "end_draw_id": per_draw[-1]["draw_id"] if per_draw else None,
-        "PositionWiseEnsemble": _summary(
-            "PositionWiseEnsemble", holdout_results, holdout_position
-        ),
-        "RandomOneTicket": _summary(
-            "RandomOneTicket", holdout_results, holdout_random
-        ),
+        "start_draw_id": holdout_draws[0]["draw_id"] if holdout_draws else None,
+        "end_draw_id": holdout_draws[-1]["draw_id"] if holdout_draws else None,
     }
+    tail_holdout.update({
+        name: _summary(name, holdout_results, tickets_by_model[name][holdout_start:])
+        for name in model_names
+    })
 
     return {
-        "report_version": 1,
-        "model": "PositionWiseEnsemble",
-        "method": "Expanding walk-forward; each target sees only earlier draws; one ticket per draw",
+        "report_version": 2,
+        "model": "PositionWise model family",
+        "method": (
+            "Expanding walk-forward; each target sees only earlier draws; one ticket "
+            "per model per draw; same seeded random baseline and prize schedule"
+        ),
+        "models_compared": model_names,
         "dataset": {
             "draws_available": len(ordered),
             "first_draw_id": ordered[0]["id"],
             "last_draw_id": ordered[-1]["id"],
             "evaluation_draws": len(per_draw),
             "warmup_draws": min_history,
-            "tickets_per_draw": 1,
+            "tickets_per_model_per_draw": 1,
             "ticket_price_vnd": 10_000,
             "seeded_random_baseline_seed": seed,
         },
         "full_walk_forward": full,
+        "position_accuracy_full_walk_forward": _position_accuracy(per_draw, model_names),
         "tail_holdout_last_15pct": tail_holdout,
+        "position_accuracy_tail_holdout": _position_accuracy(holdout_draws, model_names),
         "per_draw": per_draw,
     }
 
 
 def render_markdown(report: dict[str, Any]) -> str:
-    """Render ROI and net return for the full walk-forward and tail holdout."""
+    """Render ROI and exact-slot accuracy for full backtest and tail holdout."""
     lines = [
-        "# Position-wise Power 6/55 ROI Backtest",
+        "# Position-wise Power 6/55 Model-Family Backtest",
         "",
         f"- Method: {report['method']}",
         f"- Available draws: {report['dataset']['draws_available']}",
         f"- Evaluation draws: {report['dataset']['evaluation_draws']}",
         f"- Warm-up draws: {report['dataset']['warmup_draws']}",
-        "- Ticket budget: one ticket per evaluated draw for both strategies",
-        "- Prize assumptions: same minimum prize schedule as Backtest V2",
+        "- Budget: one ticket per model per evaluated draw, equal for all models",
+        "- Prize assumptions: same prize schedule as Backtest V2",
         "",
-        "## Full walk-forward",
+        "## Full walk-forward — same budget",
         "",
         "| Strategy | Draws | Tickets | Cost (VND) | Prize gain (VND) | Net (VND) | ROI | Avg. main matches |",
         "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
-    for name, row in report["full_walk_forward"].items():
+    for name in report["models_compared"]:
+        row = report["full_walk_forward"][name]
         lines.append(
             f"| {name} | {row['draws']} | {row['tickets']} | {row['cost']:,} | "
             f"{row['gain']:,} | {row['net_profit']:,} | {row['roi_pct']:.2f}% | "
             f"{row['average_main_matches']:.4f} |"
         )
 
-    lines += [
+    def append_position_table(title: str, metrics: dict[str, Any]) -> None:
+        lines.extend([
+            "",
+            f"## {title} — exact position hits",
+            "",
+            "| Model | Position 1 | Position 2 | Position 3 | Position 4 | Position 5 | Position 6 | All-six exact draws |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|",
+        ])
+        for name in report["models_compared"]:
+            item = metrics.get(name, {})
+            rates = [
+                float(slot.get("hit_rate_pct", 0.0))
+                for slot in item.get("positions", [])
+            ]
+            rates += [0.0] * (6 - len(rates))
+            lines.append(
+                f"| {name} | " + " | ".join(f"{value:.2f}%" for value in rates[:6])
+                + f" | {item.get('all_six_exact_draws', 0)} |"
+            )
+
+    append_position_table(
+        "Full walk-forward",
+        report["position_accuracy_full_walk_forward"],
+    )
+
+    tail = report["tail_holdout_last_15pct"]
+    lines.extend([
         "",
-        "## Tail holdout (last 15% of eligible draws)",
+        "## Tail holdout — last 15% of eligible draws",
         "",
-        f"- Draw range: #{report['tail_holdout_last_15pct']['start_draw_id']} "
-        f"to #{report['tail_holdout_last_15pct']['end_draw_id']}",
+        f"- Draw range: #{tail['start_draw_id']} to #{tail['end_draw_id']}",
         "",
         "| Strategy | Draws | Tickets | Cost (VND) | Prize gain (VND) | Net (VND) | ROI | Avg. main matches |",
         "|---|---:|---:|---:|---:|---:|---:|---:|",
-    ]
-    for name in ("PositionWiseEnsemble", "RandomOneTicket"):
-        row = report["tail_holdout_last_15pct"][name]
+    ])
+    for name in report["models_compared"]:
+        row = tail[name]
         lines.append(
             f"| {name} | {row['draws']} | {row['tickets']} | {row['cost']:,} | "
             f"{row['gain']:,} | {row['net_profit']:,} | {row['roi_pct']:.2f}% | "
             f"{row['average_main_matches']:.4f} |"
         )
+    append_position_table("Tail holdout", report["position_accuracy_tail_holdout"])
 
-    lines += [
+    lines.extend([
         "",
         "## Interpretation",
         "",
-        "ROI is net profit divided by ticket cost. A negative ROI means prizes did not cover ticket spend. "
-        "The tail holdout is reported separately to reduce the risk of judging the model only by the full-history result. "
+        "ROI is net profit divided by ticket cost. Exact position hit means the forecasted number "
+        "equals the actual number at the same rank after sorting the six main numbers. "
+        "All models are evaluated on the same historical targets with one ticket each; the random "
+        "baseline is seeded for reproducibility. A negative ROI means prizes did not cover ticket spend. "
         "Lottery outcomes are random; historical performance does not guarantee future returns.",
         "",
-    ]
+    ])
     return "\n".join(lines)
-
 
 def main() -> None:
     report = run_backtest(load_rows())
