@@ -22,6 +22,7 @@ from .strategies import (
     ExponentialDecayStrategy,
     LogisticProbabilityStrategy,
     PortfolioEnsembleStrategy,
+    PositionWiseEnsembleStrategy,
     RankEnsembleStrategy,
 )
 
@@ -297,6 +298,12 @@ def main() -> None:
     for name in ("Bayesian", "ExponentialDecay", "LogisticProbability", "RankEnsemble"):
         predictions[name] = models[name].predict(target)
 
+    positionwise_model = PositionWiseEnsembleStrategy(
+        df, time_predict=1, decay_half_life_days=decay_half_life_days
+    )
+    predictions["PositionWiseEnsemble"] = positionwise_model.predict(target)
+    positionwise_analysis = positionwise_model.position_details(target)
+
     portfolio_model = models["PortfolioEnsemble"]
     portfolio = [portfolio_model.predict(target) for _ in range(args.tickets)]
     portfolio_candidate_details = portfolio_model.candidate_pool_details(target)
@@ -320,6 +327,7 @@ def main() -> None:
         "forecast_generated_at_utc": datetime.now(UTC).isoformat(),
         "dataset_rows": len(rows),
         "predictions": predictions,
+        "positionwise_analysis": positionwise_analysis,
         "portfolio_stats": portfolio_stats(portfolio),
         "portfolio_candidate_pool": portfolio_candidate_details,
         "unseen_portfolio_stats": portfolio_stats(unseen_portfolio),
@@ -331,6 +339,14 @@ def main() -> None:
             "unseen_portfolio_exact_exclusion": True,
             "max_consecutive_run": 3,
             "special_used_as_feature": False,
+            "positionwise_model": {
+                "enabled": True,
+                "decay_half_life_days": positionwise_model.decay_half_life_days,
+                "prior_strength": positionwise_model.prior_strength,
+                "recent_draws": positionwise_model.recent_draws,
+                "component_weights": positionwise_model.COMPONENT_WEIGHTS,
+                "strictly_increasing_decode": True,
+            },
             "portfolio_tickets": args.tickets,
             "candidate_pool_size": args.candidate_pool_size,
             "coverage_rescue_size": args.coverage_rescue_size,
