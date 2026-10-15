@@ -25,8 +25,16 @@ def test_forecast_report_shows_upcoming_tickets_and_each_evaluated_draw(tmp_path
             "as_of_draw": {"id": "00002", "date": "2026-01-02"},
             "predictions": {
                 "Bayesian": [1, 2, 3, 4, 5, 6],
+                "PositionWiseEnsemble": [1, 2, 3, 4, 5, 6],
                 "PortfolioEnsemble": [[1, 2, 3, 4, 5, 6]],
                 "UnseenPortfolioEnsemble": [[7, 8, 9, 10, 11, 12]],
+            },
+            "positionwise_analysis": {
+                "positions": [
+                    {"position": index, "selected_number": index,
+                     "top_candidates": [{"number": index, "score": 0.2}]}
+                    for index in range(1, 7)
+                ]
             },
         },
     )
@@ -108,6 +116,9 @@ def test_forecast_report_shows_upcoming_tickets_and_each_evaluated_draw(tmp_path
     report = generate_forecast_section(tmp_path)
 
     assert "Next-draw forecast — draw **#00003**" in report
+    assert "Position-by-position forecast" in report
+    assert "PositionWiseEnsemble" in report
+    assert "01 (0.2000)" in report
     assert "| 01, 02, 03, 04, 05, 06 |" in report
     assert "Forecast sequence and outcome for each evaluated draw" in report
     assert "Draw #00001" in report
