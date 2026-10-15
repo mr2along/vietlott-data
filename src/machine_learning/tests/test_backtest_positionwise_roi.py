@@ -37,5 +37,18 @@ def test_positionwise_roi_backtest_uses_one_ticket_and_reports_holdout():
     assert full["RandomOneTicket"]["cost"] == 200_000
     assert holdout["PositionWiseEnsemble"]["draws"] == 3
     assert holdout["RandomOneTicket"]["draws"] == 3
-    assert report["dataset"]["tickets_per_draw"] == 1
+    assert report["dataset"]["tickets_per_model_per_draw"] == 1
+    expected_models = {
+        "PositionWiseBayesian",
+        "PositionWiseExponentialDecay",
+        "PositionWiseRecent",
+        "PositionWiseEnsemble",
+        "RandomOneTicket",
+    }
+    assert set(full) == expected_models
+    assert set(holdout) - {"start_draw_id", "end_draw_id"} == expected_models
+    assert {full[name]["cost"] for name in expected_models} == {200_000}
+    assert all(full[name]["draws"] == 20 for name in expected_models)
+    assert all(len(report["position_accuracy_full_walk_forward"][name]["positions"]) == 6 for name in expected_models)
+    assert "exact position hits" in render_markdown(report)
     assert "ROI" in render_markdown(report)
