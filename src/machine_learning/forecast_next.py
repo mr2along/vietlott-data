@@ -303,6 +303,7 @@ def main() -> None:
     )
     predictions["PositionWiseEnsemble"] = positionwise_model.predict(target)
     positionwise_analysis = positionwise_model.position_details(target)
+    positionwise_model_comparison = positionwise_model.component_predictions(target)
 
     portfolio_model = models["PortfolioEnsemble"]
     portfolio = [portfolio_model.predict(target) for _ in range(args.tickets)]
@@ -328,6 +329,7 @@ def main() -> None:
         "dataset_rows": len(rows),
         "predictions": predictions,
         "positionwise_analysis": positionwise_analysis,
+        "positionwise_model_comparison": positionwise_model_comparison,
         "portfolio_stats": portfolio_stats(portfolio),
         "portfolio_candidate_pool": portfolio_candidate_details,
         "unseen_portfolio_stats": portfolio_stats(unseen_portfolio),
@@ -346,6 +348,7 @@ def main() -> None:
                 "recent_draws": positionwise_model.recent_draws,
                 "component_weights": positionwise_model.COMPONENT_WEIGHTS,
                 "strictly_increasing_decode": True,
+                "component_models": ["PositionWiseBayesian", "PositionWiseExponentialDecay", "PositionWiseRecent", "PositionWiseEnsemble"],
             },
             "portfolio_tickets": args.tickets,
             "candidate_pool_size": args.candidate_pool_size,
