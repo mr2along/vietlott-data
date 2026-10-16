@@ -160,7 +160,7 @@ def run_backtest(
             for name, detail in comparison["components"].items()
         }
 
-        for name in model_names[:-1]:
+        for name in base_model_names:
             prediction = forecasts.get(name)
             if (
                 prediction is None
