@@ -38,13 +38,15 @@ def test_positionwise_roi_backtest_uses_one_ticket_and_reports_holdout():
     assert holdout["PositionWiseEnsemble"]["draws"] == 3
     assert holdout["RandomOneTicket"]["draws"] == 3
     assert report["dataset"]["tickets_per_model_per_draw"] == 1
-    expected_models = {
+    base_models = {
         "PositionWiseBayesian",
         "PositionWiseExponentialDecay",
         "PositionWiseRecent",
         "PositionWiseEnsemble",
-        "RandomOneTicket",
     }
+    expected_models = base_models | {
+        f"{name}_Mirror56Minus" for name in base_models
+    } | {"RandomOneTicket"}
     assert set(full) == expected_models
     assert set(holdout) - {"start_draw_id", "end_draw_id"} == expected_models
     assert {full[name]["cost"] for name in expected_models} == {200_000}
@@ -52,3 +54,10 @@ def test_positionwise_roi_backtest_uses_one_ticket_and_reports_holdout():
     assert all(len(report["position_accuracy_full_walk_forward"][name]["positions"]) == 6 for name in expected_models)
     assert "exact position hits" in render_markdown(report)
     assert "ROI" in render_markdown(report)
+    for name in base_models:
+        original = report["per_draw"][0]["forecasts"][name]
+        mirrored = report["per_draw"][0]["forecasts"][f"{name}_Mirror56Minus"]
+        assert mirrored == sorted(56 - number for number in original)
+        assert len(set(mirrored)) == 6
+        assert min(mirrored) >= 1 and max(mirrored) <= 55
+    assert report["mirror_transform"]["formula"] == "56 - n"
