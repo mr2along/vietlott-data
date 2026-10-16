@@ -15,6 +15,7 @@ from .pattern import PatternStrategy
 from .portfolio_ensemble import PortfolioEnsembleStrategy
 from .positionwise_ensemble import PositionWiseEnsembleStrategy
 from .positionwise_polynomial import PositionWisePolynomialStrategy
+from .pdos import PDOSStrategy
 from .random_strategy import RandomModel
 from .rank_ensemble import RankEnsembleStrategy
 from .unseen_set_gap import UnseenSetGapStrategy
@@ -37,5 +38,6 @@ __all__ = [
     "PortfolioEnsembleStrategy",
     "PositionWiseEnsembleStrategy",
     "PositionWisePolynomialStrategy",
+    "PDOSStrategy",
     "UnseenSetGapStrategy",
 ]
