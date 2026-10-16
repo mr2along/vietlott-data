@@ -20,6 +20,7 @@ import pandas as pd
 
 from .backtest_v2 import PrizeConfig, summarize
 from .strategies import PositionWiseEnsembleStrategy
+from .strategies.positionwise_polynomial import PositionWisePolynomialStrategy
 
 DEFAULT_DATA = Path("artifacts/backtest_v2/power655_benchmark.jsonl")
 OUTPUT_JSON = Path("artifacts/backtest_v2/positionwise_roi_backtest.json")
@@ -135,6 +136,7 @@ def run_backtest(
         [{"date": row["date"], "result": row["result"][:6]} for row in ordered]
     )
     model = PositionWiseEnsembleStrategy(model_df)
+    polynomial_model = PositionWisePolynomialStrategy(model_df)
     rng = random.Random(seed)
 
     eligible_rows = ordered[min_history:]
@@ -143,6 +145,7 @@ def run_backtest(
         "PositionWiseExponentialDecay",
         "PositionWiseRecent",
         "PositionWiseEnsemble",
+        "PositionWisePolynomial",
     ]
     mirror_model_names = [f"{name}_Mirror56Minus" for name in base_model_names]
     model_names = base_model_names + mirror_model_names + ["RandomOneTicket"]
@@ -159,6 +162,7 @@ def run_backtest(
             name: [int(value) for value in detail["predicted_numbers"]]
             for name, detail in comparison["components"].items()
         }
+        forecasts["PositionWisePolynomial"] = polynomial_model.predict(target["date"])
 
         for name in base_model_names:
             prediction = forecasts.get(name)
@@ -227,8 +231,9 @@ def run_backtest(
             "note": "Mirrored tickets are a deterministic transform of the original forecast, not independently trained models",
         },
         "method": (
-            "Expanding walk-forward; each target sees only earlier draws; one ticket "
-            "per model per draw; same seeded random baseline and prize schedule"
+            "Expanding walk-forward; each target sees only earlier draws; polynomial model "
+            "fits degree-2 trends to block-level slot frequencies and blends them with the "
+            "theoretical prior; one ticket per model per draw; same seeded random baseline and prize schedule"
         ),
         "models_compared": model_names,
         "dataset": {
