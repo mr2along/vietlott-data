@@ -5,6 +5,7 @@ on:
     branches:
       - "forecast/next-power655-*"
       - "forecast/fix-next-draw-*"
+      - "feat/position-wise-power655-model"
   pull_request:
     branches:
       - main
