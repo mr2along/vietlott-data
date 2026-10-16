@@ -128,15 +128,36 @@ def main() -> None:
                 if unseen_portfolio_tickets
                 else None
             ),
+            "positionwise_analysis": payload.get("positionwise_analysis"),
             "single_models": {},
         }
-        for name in ("Bayesian", "ExponentialDecay", "LogisticProbability", "RankEnsemble"):
+        for name in (
+            "Bayesian", "ExponentialDecay", "LogisticProbability", "RankEnsemble",
+            "PositionWiseEnsemble",
+        ):
             ticket = predictions.get(name)
             if isinstance(ticket, list) and len(ticket) == 6:
-                row["single_models"][name] = {
+                single_result = {
                     "forecast_numbers": ticket,
                     **ticket_result(ticket, draw),
                 }
+                if name == "PositionWiseEnsemble":
+                    forecast_by_position = [int(number) for number in ticket]
+                    actual_by_position = sorted(int(number) for number in draw["main"])
+                    position_matches = [
+                        {
+                            "position": index + 1,
+                            "forecast": forecast_by_position[index],
+                            "actual": actual_by_position[index],
+                            "exact_hit": forecast_by_position[index] == actual_by_position[index],
+                        }
+                        for index in range(6)
+                    ]
+                    single_result["position_matches"] = position_matches
+                    single_result["position_exact_hits"] = sum(
+                        item["exact_hit"] for item in position_matches
+                    )
+                row["single_models"][name] = single_result
         evaluated.append(row)
 
     evaluated.sort(key=lambda x: (str(x.get("target_draw_date")), x["target_draw_id"]))
@@ -161,9 +182,33 @@ def main() -> None:
             "roi_pct": (gain - cost) / cost * 100.0 if cost else 0.0,
         }
 
+    positionwise_rows = [
+        row["single_models"]["PositionWiseEnsemble"]
+        for row in evaluated
+        if isinstance(row.get("single_models"), dict)
+        and isinstance(row["single_models"].get("PositionWiseEnsemble"), dict)
+    ]
+    positionwise_summary = {
+        "draws_evaluated": len(positionwise_rows),
+        "average_main_matches": (
+            sum(int(row["main_matches"]) for row in positionwise_rows) / len(positionwise_rows)
+            if positionwise_rows else 0.0
+        ),
+        "position_exact_hits": sum(
+            int(row.get("position_exact_hits", 0)) for row in positionwise_rows
+        ),
+        "positions_evaluated": 6 * len(positionwise_rows),
+        "position_exact_accuracy_pct": (
+            sum(int(row.get("position_exact_hits", 0)) for row in positionwise_rows)
+            / (6 * len(positionwise_rows)) * 100.0
+            if positionwise_rows else 0.0
+        ),
+    }
+
     report = {
-        "report_version": 2,
+        "report_version": 3,
         "evaluated_draws": evaluated,
+        "single_model_summary": {"PositionWiseEnsemble": positionwise_summary},
         "pending_target_draw_ids": sorted(set(x for x in pending if x)),
         "summary": {
             "PortfolioEnsemble": aggregate("portfolio_ensemble"),
@@ -196,6 +241,18 @@ def main() -> None:
             f"| {name} | {x['draws_evaluated']} | {x['tickets']} | {x['tickets_ge3']} | "
             f"{x['tickets_ge3_rate_pct']:.2f}% | {x['gain_vnd']:,} | {x['net_profit_vnd']:,} | {x['roi_pct']:.2f}% |"
         )
+
+    if positionwise_summary["draws_evaluated"]:
+        md += [
+            "",
+            "## Position-wise model evaluation",
+            "",
+            "| Draws | Average main matches per ticket | Exact position hits | Positions evaluated | Position accuracy |",
+            "|---:|---:|---:|---:|---:|",
+            f"| {positionwise_summary['draws_evaluated']} | {positionwise_summary['average_main_matches']:.3f} | "
+            f"{positionwise_summary['position_exact_hits']} | {positionwise_summary['positions_evaluated']} | "
+            f"{positionwise_summary['position_exact_accuracy_pct']:.2f}% |",
+        ]
 
     md += [
         "",

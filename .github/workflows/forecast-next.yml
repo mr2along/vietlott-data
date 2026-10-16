@@ -5,6 +5,7 @@ on:
     branches:
       - "forecast/next-power655-*"
       - "forecast/fix-next-draw-*"
+      - "feat/position-wise-power655-model"
   pull_request:
     branches:
       - main
@@ -101,4 +102,45 @@ jobs:
         with:
           name: next-power655-candidate-audit
           path: artifacts/audit/forecast_candidate_coverage.json
+          if-no-files-found: error
+
+  positionwise-roi:
+    name: Position-wise ROI walk-forward and multi-window backtests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[ml]" pytest
+          pip install pandas numpy scikit-learn
+      - name: Normalize Power 6/55 data
+        run: python -m src.machine_learning.normalize_power655
+      - name: Compile Python sources
+        run: python -m compileall -q src
+      - name: Test backtest implementations
+        run: pytest -q src/machine_learning/tests/test_pdos.py src/machine_learning/tests/test_backtest_positionwise_roi.py src/machine_learning/tests/test_backtest_positionwise_multiwindow.py src/machine_learning/tests/test_backtest_positionwise_random_seed.py
+      - name: Run position-wise ROI walk-forward backtest
+        run: python -m src.machine_learning.backtest_positionwise_roi
+      - name: Run multi-window ROI stability backtest
+        run: python -m src.machine_learning.backtest_positionwise_multiwindow
+      - name: Compare models against 500 seeded random baselines
+        run: python -m src.machine_learning.backtest_positionwise_random_seed
+      - name: Upload position-wise ROI backtest
+        uses: actions/upload-artifact@v4
+        with:
+          name: positionwise-roi-backtest
+          path: |
+            artifacts/backtest_v2/positionwise_roi_backtest.json
+            artifacts/backtest_v2/positionwise_roi_backtest.md
+            artifacts/backtest_v2/positionwise_multiwindow_backtest.json
+            artifacts/backtest_v2/positionwise_multiwindow_backtest.md
+            artifacts/backtest_v2/positionwise_random_seed_validation.json
+            artifacts/backtest_v2/positionwise_random_seed_validation.md
           if-no-files-found: error

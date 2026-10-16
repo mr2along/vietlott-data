@@ -64,6 +64,14 @@ def test_main_writes_parseable_json_and_multiline_markdown(tmp_path, monkeypatch
         "predictions": {
             "PortfolioEnsemble": [[1, 2, 3, 4, 5, 6]],
             "UnseenPortfolioEnsemble": [[7, 8, 9, 10, 11, 12]],
+            "PositionWiseEnsemble": [1, 2, 3, 4, 5, 6],
+        },
+        "positionwise_analysis": {
+            "positions": [
+                {"position": index, "selected_number": index,
+                 "top_candidates": [{"number": index, "score": 0.2}]}
+                for index in range(1, 7)
+            ]
         },
     }
     (history / "forecast_00001.json").write_text(
@@ -75,6 +83,12 @@ def test_main_writes_parseable_json_and_multiline_markdown(tmp_path, monkeypatch
     results_path = tmp_path / "artifacts/forecast/results/forecast_results.json"
     results = json.loads(results_path.read_text(encoding="utf-8"))
     assert results["evaluated_draws"][0]["target_draw_id"] == "00001"
+    evaluated = results["evaluated_draws"][0]
+    positionwise = evaluated["single_models"]["PositionWiseEnsemble"]
+    assert positionwise["main_matches"] == 6
+    assert positionwise["position_exact_hits"] == 6
+    assert results["single_model_summary"]["PositionWiseEnsemble"]["position_exact_accuracy_pct"] == 100.0
+    assert "positionwise_analysis" in evaluated
 
     markdown = (
         tmp_path / "artifacts/forecast/results/forecast_results.md"
