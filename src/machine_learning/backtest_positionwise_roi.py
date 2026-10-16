@@ -21,6 +21,7 @@ import pandas as pd
 from .backtest_v2 import PrizeConfig, summarize
 from .strategies import PositionWiseEnsembleStrategy
 from .strategies.positionwise_polynomial import PositionWisePolynomialStrategy
+from .strategies.pdos import PDOSStrategy
 
 DEFAULT_DATA = Path("artifacts/backtest_v2/power655_benchmark.jsonl")
 OUTPUT_JSON = Path("artifacts/backtest_v2/positionwise_roi_backtest.json")
@@ -137,6 +138,7 @@ def run_backtest(
     )
     model = PositionWiseEnsembleStrategy(model_df)
     polynomial_model = PositionWisePolynomialStrategy(model_df)
+    pdos_model = PDOSStrategy(model_df)
     rng = random.Random(seed)
 
     eligible_rows = ordered[min_history:]
@@ -146,6 +148,7 @@ def run_backtest(
         "PositionWiseRecent",
         "PositionWiseEnsemble",
         "PositionWisePolynomial",
+        "P-DOS",
     ]
     mirror_model_names = [f"{name}_Mirror56Minus" for name in base_model_names]
     model_names = base_model_names + mirror_model_names + ["RandomOneTicket"]
@@ -163,6 +166,7 @@ def run_backtest(
             for name, detail in comparison["components"].items()
         }
         forecasts["PositionWisePolynomial"] = polynomial_model.predict(target["date"])
+        forecasts["P-DOS"] = pdos_model.predict(target["date"])
 
         for name in base_model_names:
             prediction = forecasts.get(name)
@@ -266,6 +270,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         "- Budget: one ticket per model per evaluated draw, equal for all models",
         "- Mirror transform: 56 - n (valid reflection of numbers 1..55; literal 55 - n can create invalid 0)",
         "- Mirrored tickets are deterministic transforms of original predictions, not separately trained models",
+        "- P-DOS is a research-only philosophy-inspired challenger (Yin-Yang balance, I-Ching-inspired state transitions, fixed modulo-5 grouping); mappings are conventions and do not imply predictability",
         "- Prize assumptions: same prize schedule as Backtest V2",
         "",
         "## Full walk-forward — same budget",
