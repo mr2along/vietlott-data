@@ -58,11 +58,13 @@ def test_multiwindow_backtest_has_comparable_chronological_windows():
         "PositionWiseRecent",
         "PositionWiseEnsemble",
         "PositionWisePolynomial",
+        "P-DOS",
         "PositionWiseBayesian_Mirror56Minus",
         "PositionWiseExponentialDecay_Mirror56Minus",
         "PositionWiseRecent_Mirror56Minus",
         "PositionWiseEnsemble_Mirror56Minus",
         "PositionWisePolynomial_Mirror56Minus",
+        "P-DOS_Mirror56Minus",
         "RandomOneTicket",
     }
     assert set(strategies) == expected_models
