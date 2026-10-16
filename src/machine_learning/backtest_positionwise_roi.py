@@ -138,13 +138,14 @@ def run_backtest(
     rng = random.Random(seed)
 
     eligible_rows = ordered[min_history:]
-    model_names = [
+    base_model_names = [
         "PositionWiseBayesian",
         "PositionWiseExponentialDecay",
         "PositionWiseRecent",
         "PositionWiseEnsemble",
-        "RandomOneTicket",
     ]
+    mirror_model_names = [f"{name}_Mirror56Minus" for name in base_model_names]
+    model_names = base_model_names + mirror_model_names + ["RandomOneTicket"]
     tickets_by_model: dict[str, list[list[list[int]]]] = {
         name: [] for name in model_names
     }
@@ -171,8 +172,16 @@ def run_backtest(
                     f"Invalid {name} prediction for #{target['id']}: {prediction}"
                 )
 
+        # Reflection of the valid 1..55 lottery range is 56 - n.
+        # Literal 55 - n can produce 0 for n=55, which is not a valid ticket number.
+        for name in base_model_names:
+            forecasts[f"{name}_Mirror56Minus"] = sorted(56 - value for value in forecasts[name])
         random_ticket = sorted(rng.sample(range(1, 56), 6))
         forecasts["RandomOneTicket"] = random_ticket
+        for name in mirror_model_names:
+            prediction = forecasts[name]
+            if len(prediction) != 6 or prediction != sorted(set(prediction)) or any(number < 1 or number > 55 for number in prediction):
+                raise AssertionError(f"Invalid mirrored {name} prediction for #{target['id']}: {prediction}")
         actual_results.append(list(target["result"]))
         for name in model_names:
             tickets_by_model[name].append([forecasts[name]])
@@ -211,7 +220,12 @@ def run_backtest(
 
     return {
         "report_version": 2,
-        "model": "PositionWise model family",
+        "model": "PositionWise model family with mirror-transform challenger",
+        "mirror_transform": {
+            "formula": "56 - n",
+            "reason": "Preserves the valid lottery number domain 1..55; literal 55 - n would produce invalid number 0 when n=55",
+            "note": "Mirrored tickets are a deterministic transform of the original forecast, not independently trained models",
+        },
         "method": (
             "Expanding walk-forward; each target sees only earlier draws; one ticket "
             "per model per draw; same seeded random baseline and prize schedule"
@@ -245,6 +259,8 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- Evaluation draws: {report['dataset']['evaluation_draws']}",
         f"- Warm-up draws: {report['dataset']['warmup_draws']}",
         "- Budget: one ticket per model per evaluated draw, equal for all models",
+        "- Mirror transform: 56 - n (valid reflection of numbers 1..55; literal 55 - n can create invalid 0)",
+        "- Mirrored tickets are deterministic transforms of original predictions, not separately trained models",
         "- Prize assumptions: same prize schedule as Backtest V2",
         "",
         "## Full walk-forward — same budget",
