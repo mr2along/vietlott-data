@@ -125,7 +125,7 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q src
       - name: Test backtest implementations
-        run: pytest -q src/machine_learning/tests/test_backtest_positionwise_roi.py src/machine_learning/tests/test_backtest_positionwise_multiwindow.py src/machine_learning/tests/test_backtest_positionwise_random_seed.py
+        run: pytest -q src/machine_learning/tests/test_pdos.py src/machine_learning/tests/test_backtest_positionwise_roi.py src/machine_learning/tests/test_backtest_positionwise_multiwindow.py src/machine_learning/tests/test_backtest_positionwise_random_seed.py
       - name: Run position-wise ROI walk-forward backtest
         run: python -m src.machine_learning.backtest_positionwise_roi
       - name: Run multi-window ROI stability backtest
