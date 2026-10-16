@@ -125,6 +125,77 @@ def _metrics(outcomes: Sequence[tuple[int, bool, int]]) -> dict[str, Any]:
     }
 
 
+def _hit_counts(outcomes: Sequence[tuple[int, bool, int]]) -> dict[str, int]:
+    """Count exact k-hit and at-least-k events from main-number matches only."""
+    matches = [int(item[0]) for item in outcomes]
+    counts: dict[str, int] = {}
+    for value in range(7):
+        counts[f"exact_{value}_count"] = sum(match == value for match in matches)
+    for threshold in range(3, 7):
+        counts[f"at_least_{threshold}_count"] = sum(match >= threshold for match in matches)
+    return counts
+
+
+def _hit_metrics(outcomes: Sequence[tuple[int, bool, int]]) -> dict[str, Any]:
+    """Hit counts and hit rates, separate from prize/ROI results."""
+    draws = len(outcomes)
+    counts = _hit_counts(outcomes)
+    result: dict[str, Any] = {
+        "draws": draws,
+        "average_main_matches": (
+            mean([int(item[0]) for item in outcomes]) if outcomes else 0.0
+        ),
+    }
+    result.update(counts)
+    for value in range(7):
+        result[f"exact_{value}_pct"] = (
+            counts[f"exact_{value}_count"] / draws * 100.0 if draws else 0.0
+        )
+    for threshold in range(3, 7):
+        result[f"at_least_{threshold}_pct"] = (
+            counts[f"at_least_{threshold}_count"] / draws * 100.0 if draws else 0.0
+        )
+    return result
+
+
+def _count_distribution(values: Sequence[int]) -> dict[str, Any]:
+    """Summarize hit counts across simulated random-ticket streams."""
+    numeric = [int(value) for value in values]
+    if not numeric:
+        raise ValueError("Cannot summarize an empty random hit-count distribution")
+    return {
+        "seed_count": len(numeric),
+        "mean_count": mean(numeric),
+        "median_count": median(numeric),
+        "p05_count": _percentile(numeric, 0.05),
+        "p95_count": _percentile(numeric, 0.95),
+        "min_count": min(numeric),
+        "max_count": max(numeric),
+        "zero_count_seed_count": sum(value == 0 for value in numeric),
+        "at_least_one_count_seed_count": sum(value >= 1 for value in numeric),
+        "at_least_one_count_seed_pct": sum(value >= 1 for value in numeric) / len(numeric) * 100.0,
+    }
+
+
+def _compare_hit_count_to_random(
+    model_count: int, random_counts: Sequence[int]
+) -> dict[str, Any]:
+    """Empirical upper-tail comparison of a model's hit count to random streams."""
+    seed_count = len(random_counts)
+    random_ge_model = sum(int(value) >= int(model_count) for value in random_counts)
+    return {
+        "model_count": int(model_count),
+        "random_seeds_count_at_least_model": random_ge_model,
+        "random_seeds_count_at_least_model_pct": (
+            random_ge_model / seed_count * 100.0 if seed_count else 0.0
+        ),
+        "empirical_upper_tail_p_with_plus_one_correction": (
+            (random_ge_model + 1) / (seed_count + 1) if seed_count else 1.0
+        ),
+        "random_count_distribution": _count_distribution(random_counts),
+    }
+
+
 def _distribution(roi_values: Sequence[float]) -> dict[str, Any]:
     values = [float(value) for value in roi_values]
     if not values:
@@ -202,6 +273,16 @@ def run_random_seed_validation(
     random_rois_by_scope: dict[str, list[float]] = {
         f"{scope['family']}/{scope['name']}": [] for scope in scopes
     }
+    hit_count_keys = [
+        *(f"exact_{value}_count" for value in range(7)),
+        *(f"at_least_{threshold}_count" for threshold in range(3, 7)),
+    ]
+    random_hit_counts_by_scope: dict[str, dict[str, list[int]]] = {
+        f"{scope['family']}/{scope['name']}": {
+            metric: [] for metric in hit_count_keys
+        }
+        for scope in scopes
+    }
     for offset in range(seed_count):
         seed = seed_start + offset
         rng = random.Random(seed)
@@ -211,9 +292,11 @@ def run_random_seed_validation(
         ]
         for scope in scopes:
             key = f"{scope['family']}/{scope['name']}"
-            random_rois_by_scope[key].append(
-                _metrics(outcomes[scope["start"]:scope["stop"]])["roi_pct"]
-            )
+            scope_outcomes = outcomes[scope["start"]:scope["stop"]]
+            random_rois_by_scope[key].append(_metrics(scope_outcomes)["roi_pct"])
+            seed_hit_counts = _hit_counts(scope_outcomes)
+            for metric in hit_count_keys:
+                random_hit_counts_by_scope[key][metric].append(seed_hit_counts[metric])
 
     scope_reports: dict[str, Any] = {}
     for scope in scopes:
@@ -221,9 +304,28 @@ def run_random_seed_validation(
         start, stop = scope["start"], scope["stop"]
         random_rois = random_rois_by_scope[key]
         comparisons = {}
+        model_hit_report: dict[str, dict[str, Any]] = {}
+        hit_count_distributions = {
+            metric: _count_distribution(values)
+            for metric, values in random_hit_counts_by_scope[key].items()
+        }
+        hit_comparisons: dict[str, Any] = {}
         for name in model_names:
-            model_roi = _metrics(model_outcomes[name][start:stop])["roi_pct"]
+            model_segment = model_outcomes[name][start:stop]
+            model_roi = _metrics(model_segment)["roi_pct"]
             comparisons[name] = _compare_to_random(model_roi, random_rois)
+            model_hit_report[name] = _hit_metrics(model_segment)
+            hit_comparisons[name] = {
+                f"at_least_{threshold}": _compare_hit_count_to_random(
+                    model_hit_report[name][f"at_least_{threshold}_count"],
+                    random_hit_counts_by_scope[key][f"at_least_{threshold}_count"],
+                )
+                for threshold in range(3, 7)
+            }
+            hit_comparisons[name]["exactly_4"] = _compare_hit_count_to_random(
+                model_hit_report[name]["exact_4_count"],
+                random_hit_counts_by_scope[key]["exact_4_count"],
+            )
         scope_reports[key] = {
             "family": scope["family"],
             "name": scope["name"],
@@ -234,6 +336,21 @@ def run_random_seed_validation(
             "end_date": scope["end_date"],
             "model_metrics": {
                 name: _metrics(model_outcomes[name][start:stop]) for name in model_names
+            },
+            "hit_rate_analysis": {
+                "definition": (
+                    "Counts concern matches among the six main numbers only; special number "
+                    "is excluded. exact_4 means exactly four main matches; at_least_4 means "
+                    "four, five, or six main matches."
+                ),
+                "model_metrics": model_hit_report,
+                "random_seed_count_distributions": hit_count_distributions,
+                "model_comparisons_vs_random": hit_comparisons,
+                "comparison_note": (
+                    "Empirical upper-tail p-values compare the model's number of at-least-k "
+                    "events with 500 seeded random ticket streams over the identical target draws. "
+                    "They are conditional historical benchmarks, not guarantees of future performance."
+                ),
             },
             "random_seed_roi_distribution": _distribution(random_rois),
             "model_comparisons_vs_random": comparisons,
@@ -369,6 +486,48 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"{comparison['empirical_one_sided_p_random_roi_ge_model']:.4f} |"
         )
 
+    def append_hit_section(scope_key: str, heading: str) -> None:
+        scope = report["scopes"][scope_key]
+        hit_report = scope["hit_rate_analysis"]
+        lines.extend([
+            "",
+            heading,
+            "",
+            "| Strategy | Exact 3 | 3+ | Exact 4 | 4+ | Exact 5 | 5+ | Exact 6 | 6+ | Random seeds with 4+ count >= model | Empirical p (4+) |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        ])
+        for name, metrics in hit_report["model_metrics"].items():
+            comparison = hit_report["model_comparisons_vs_random"][name]["at_least_4"]
+            distribution = comparison["random_count_distribution"]
+            lines.append(
+                f"| {name} | {metrics['exact_3_count']} | {metrics['at_least_3_count']} | "
+                f"{metrics['exact_4_count']} | {metrics['at_least_4_count']} | "
+                f"{metrics['exact_5_count']} | {metrics['at_least_5_count']} | "
+                f"{metrics['exact_6_count']} | {metrics['at_least_6_count']} | "
+                f"{comparison['random_seeds_count_at_least_model']}/{distribution['seed_count']} | "
+                f"{comparison['empirical_upper_tail_p_with_plus_one_correction']:.4f} |"
+            )
+        random4 = hit_report["random_seed_count_distributions"]["at_least_4_count"]
+        random_exact4 = hit_report["random_seed_count_distributions"]["exact_4_count"]
+        lines.extend([
+            "",
+            f"- Random baseline for 4+ main matches: mean {random4['mean_count']:.3f} events per seed; "
+            f"median {random4['median_count']:.0f}; P05–P95 {random4['p05_count']:.0f}–{random4['p95_count']:.0f}; "
+            f"{random4['at_least_one_count_seed_count']}/{random4['seed_count']} seeds had at least one 4+ event.",
+            f"- Random baseline for exactly 4 main matches: mean {random_exact4['mean_count']:.3f} events per seed; "
+            f"median {random_exact4['median_count']:.0f}; P05–P95 {random_exact4['p05_count']:.0f}–{random_exact4['p95_count']:.0f}.",
+            "- 4+ means four, five, or six of the six main numbers; special-number matching does not count toward these hit metrics.",
+        ])
+
+    append_hit_section(
+        "overall/full_walk_forward",
+        "## Main-number hit counts — full walk-forward"
+    )
+    append_hit_section(
+        "overall/tail_holdout_last_15pct",
+        "## Main-number hit counts — final 15% holdout"
+    )
+
     lines.extend([
         "",
         "## Stability across the same multi-window scopes",
@@ -410,6 +569,9 @@ def render_markdown(report: dict[str, Any]) -> str:
         "## Interpretation",
         "",
         report["interpretation"],
+        "Hit-count comparisons use the same historical target draws and seeded random ticket streams. "
+        "A higher hit count in this finite backtest is descriptive evidence only; holdout and future prospective "
+        "evaluation are needed before any production decision.",
         "Higher model percentile means the model's historical ROI exceeded more simulated random-seed outcomes. "
         "Low empirical p alone does not establish a future predictive edge. Do not promote a model based on "
         "this report alone; evaluate calibration and a genuinely untouched prospective period.",
