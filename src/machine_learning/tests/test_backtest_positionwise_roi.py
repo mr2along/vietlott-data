@@ -44,6 +44,7 @@ def test_positionwise_roi_backtest_uses_one_ticket_and_reports_holdout():
         "PositionWiseRecent",
         "PositionWiseEnsemble",
         "PositionWisePolynomial",
+        "P-DOS",
     }
     expected_models = base_models | {
         f"{name}_Mirror56Minus" for name in base_models
