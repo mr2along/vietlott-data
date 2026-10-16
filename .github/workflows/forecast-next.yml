@@ -125,11 +125,13 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q src
       - name: Test backtest implementations
-        run: pytest -q src/machine_learning/tests/test_backtest_positionwise_roi.py src/machine_learning/tests/test_backtest_positionwise_multiwindow.py
+        run: pytest -q src/machine_learning/tests/test_backtest_positionwise_roi.py src/machine_learning/tests/test_backtest_positionwise_multiwindow.py src/machine_learning/tests/test_backtest_positionwise_random_seed.py
       - name: Run position-wise ROI walk-forward backtest
         run: python -m src.machine_learning.backtest_positionwise_roi
       - name: Run multi-window ROI stability backtest
         run: python -m src.machine_learning.backtest_positionwise_multiwindow
+      - name: Compare models against 500 seeded random baselines
+        run: python -m src.machine_learning.backtest_positionwise_random_seed
       - name: Upload position-wise ROI backtest
         uses: actions/upload-artifact@v4
         with:
@@ -139,4 +141,6 @@ jobs:
             artifacts/backtest_v2/positionwise_roi_backtest.md
             artifacts/backtest_v2/positionwise_multiwindow_backtest.json
             artifacts/backtest_v2/positionwise_multiwindow_backtest.md
+            artifacts/backtest_v2/positionwise_random_seed_validation.json
+            artifacts/backtest_v2/positionwise_random_seed_validation.md
           if-no-files-found: error
