@@ -57,6 +57,19 @@ def test_multi_seed_random_baseline_uses_same_draws_and_is_reproducible():
     assert 0 < polynomial["empirical_one_sided_p_random_roi_ge_model"] <= 1
     assert full["model_metrics"]["PositionWisePolynomial"]["cost"] == 200_000
     assert full["model_metrics"]["PositionWiseEnsemble"]["cost"] == 200_000
+
+    hit_report = full["hit_rate_analysis"]
+    polynomial_hits = hit_report["model_metrics"]["PositionWisePolynomial"]
+    assert polynomial_hits["draws"] == 20
+    assert sum(polynomial_hits[f"exact_{value}_count"] for value in range(7)) == 20
+    assert polynomial_hits["at_least_4_count"] <= polynomial_hits["at_least_3_count"]
+    random_at_least_4 = hit_report["random_seed_count_distributions"]["at_least_4_count"]
+    assert random_at_least_4["seed_count"] == 20
+    hit_comparison = hit_report["model_comparisons_vs_random"]["PositionWisePolynomial"]["at_least_4"]
+    assert 0 <= hit_comparison["random_seeds_count_at_least_model"] <= 20
+    assert 0 < hit_comparison["empirical_upper_tail_p_with_plus_one_correction"] <= 1
+    assert "Main-number hit counts" in render_markdown(report)
+    assert "Exact 4" in render_markdown(report)
     assert scopes["fixed_blocks_10/block_01"]["draws"] == 10
     assert scopes["rolling_15_step_10/rolling_01"]["draws"] == 15
     assert scopes["trailing_windows/last_20"]["draws"] == 20
