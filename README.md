@@ -49,13 +49,103 @@
 
 Forecasts are published for research and retrospective evaluation only. Lottery draws are random; model outputs do not guarantee future results.
 
-### Next-draw forecast
+### Next-draw forecast — draw **#01413**
 
-> The stored forecast targets draw **#01412**, but the latest result loaded is **#01412**. The forecast is not presented as upcoming; the next expected target is **#01413**.
+- **Target date:** 2026-10-20 (Tuesday)
+- **Data cutoff:** draw #01412 dated 2026-10-17
+- **Generated (UTC):** 2026-10-19T19:25:29.374896+00:00
+
+These are research forecasts, not guaranteed outcomes. The special number is excluded from model features.
+
+#### Single-line model predictions
+
+| Model | Predicted numbers |
+|---|---|
+| Bayesian | 01, 07, 08, 11, 16, 22 |
+| ExponentialDecay | 01, 07, 11, 16, 18, 27 |
+| LogisticProbability | 07, 11, 13, 16, 21, 22 |
+| RankEnsemble | 01, 07, 11, 13, 16, 22 |
+
+<details>
+<summary>PortfolioEnsemble — 30 ticket combinations</summary>
+
+| # | Predicted combination |
+|---:|---|
+| 1 | 01, 07, 11, 16, 18, 22 |
+| 2 | 01, 07, 11, 13, 16, 25 |
+| 3 | 05, 07, 08, 14, 21, 27 |
+| 4 | 08, 11, 23, 24, 41, 53 |
+| 5 | 05, 09, 16, 24, 32, 39 |
+| 6 | 08, 09, 13, 18, 29, 38 |
+| 7 | 02, 18, 23, 29, 39, 45 |
+| 8 | 07, 09, 20, 31, 41, 55 |
+| 9 | 11, 27, 30, 38, 39, 55 |
+| 10 | 08, 16, 20, 26, 33, 45 |
+| 11 | 07, 22, 24, 25, 26, 38 |
+| 12 | 02, 05, 11, 18, 31, 33 |
+| 13 | 16, 22, 27, 29, 31, 53 |
+| 14 | 01, 05, 14, 20, 23, 38 |
+| 15 | 07, 13, 23, 30, 32, 33 |
+| 16 | 09, 11, 14, 21, 22, 45 |
+| 17 | 02, 14, 16, 25, 30, 41 |
+| 18 | 18, 21, 23, 25, 27, 32 |
+| 19 | 07, 14, 18, 24, 53, 55 |
+| 20 | 01, 08, 21, 25, 31, 39 |
+| 21 | 05, 11, 20, 25, 29, 32 |
+| 22 | 05, 13, 16, 21, 38, 41 |
+| 23 | 02, 07, 08, 26, 27, 32 |
+| 24 | 01, 13, 24, 27, 41, 45 |
+| 25 | 11, 13, 14, 23, 26, 39 |
+| 26 | 02, 05, 08, 13, 22, 55 |
+| 27 | 16, 21, 23, 29, 33, 55 |
+| 28 | 05, 07, 23, 30, 31, 45 |
+| 29 | 07, 09, 29, 33, 39, 41 |
+| 30 | 02, 07, 20, 21, 38, 53 |
+
+</details>
+
+
+<details>
+<summary>UnseenPortfolioEnsemble — 30 ticket combinations</summary>
+
+| # | Predicted combination |
+|---:|---|
+| 1 | 01, 07, 11, 16, 18, 22 |
+| 2 | 01, 07, 11, 13, 16, 25 |
+| 3 | 05, 07, 08, 14, 21, 27 |
+| 4 | 08, 11, 23, 24, 41, 53 |
+| 5 | 05, 09, 16, 24, 32, 39 |
+| 6 | 08, 09, 13, 18, 29, 38 |
+| 7 | 02, 18, 23, 29, 39, 45 |
+| 8 | 07, 09, 20, 31, 41, 55 |
+| 9 | 11, 27, 30, 38, 39, 55 |
+| 10 | 08, 16, 20, 26, 33, 45 |
+| 11 | 07, 22, 24, 25, 26, 38 |
+| 12 | 02, 05, 11, 18, 31, 33 |
+| 13 | 16, 22, 27, 29, 31, 53 |
+| 14 | 01, 05, 14, 20, 23, 38 |
+| 15 | 07, 13, 23, 30, 32, 33 |
+| 16 | 09, 11, 14, 21, 22, 45 |
+| 17 | 02, 14, 16, 25, 30, 41 |
+| 18 | 18, 21, 23, 25, 27, 32 |
+| 19 | 07, 14, 18, 24, 53, 55 |
+| 20 | 01, 08, 21, 25, 31, 39 |
+| 21 | 05, 11, 20, 25, 29, 32 |
+| 22 | 05, 13, 16, 21, 38, 41 |
+| 23 | 02, 07, 08, 26, 27, 32 |
+| 24 | 01, 13, 24, 27, 41, 45 |
+| 25 | 11, 13, 14, 23, 26, 39 |
+| 26 | 02, 05, 08, 13, 22, 55 |
+| 27 | 16, 21, 23, 29, 33, 55 |
+| 28 | 05, 07, 23, 30, 31, 45 |
+| 29 | 07, 09, 29, 33, 39, 41 |
+| 30 | 02, 07, 20, 21, 38, 53 |
+
+</details>
 
 ### Realized forecast results
 
-Completed forecasts: **8**; pending forecasts: **0**. A small historical sample does not establish predictive advantage.
+Completed forecasts: **8**; pending forecasts: **1**. A small historical sample does not establish predictive advantage.
 
 | Strategy | Draws | Tickets | Tickets with ≥3 matches | ≥3-match rate | Payout (VND) | Net (VND) | ROI |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -917,14 +1007,14 @@ Ticket cost is assumed to be 10,000 VND. Payouts use the configured prize values
 | --- | --- | --- |
 | 30 | 2026-08-15 | 63 |
 | 19 | 2026-08-22 | 56 |
-| 29 | 2026-08-29 | 49 |
 | 15 | 2026-08-29 | 49 |
-| 44 | 2026-09-01 | 46 |
+| 29 | 2026-08-29 | 49 |
 | 49 | 2026-09-01 | 46 |
+| 44 | 2026-09-01 | 46 |
 | 33 | 2026-09-05 | 42 |
 | 8 | 2026-09-08 | 39 |
 | 43 | 2026-09-12 | 35 |
-| 47 | 2026-09-15 | 32 |
+| 32 | 2026-09-15 | 32 |
 
 ### 📆 Số ngày từ lần xuất hiện cuối cùng (Days Since Last Appearance - All Numbers)
 | result | last_date | days_since |
