@@ -19,8 +19,8 @@ from .strategies import PortfolioEnsembleStrategy
 def audit_candidate_coverage(
     rows: list[dict],
     last_draws: int = 60,
-    candidate_pool_size: int = 24,
-    coverage_rescue_size: int = 0,
+    candidate_pool_size: int = 30,
+    coverage_rescue_size: int = 8,
     ensemble_score_mode: str = "full_rank",
 ) -> dict[str, object]:
     if last_draws < 1:
@@ -138,8 +138,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", default="data/power655.jsonl")
     parser.add_argument("--last-draws", type=int, default=60)
-    parser.add_argument("--candidate-pool-size", type=int, default=24)
-    parser.add_argument("--coverage-rescue-size", type=int, default=0)
+    parser.add_argument("--candidate-pool-size", type=int, default=30)
+    parser.add_argument("--coverage-rescue-size", type=int, default=8)
     parser.add_argument("--ensemble-score-mode", choices=("top6", "full_rank"), default="full_rank")
     args = parser.parse_args()
 
