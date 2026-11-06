@@ -49,13 +49,103 @@
 
 Forecasts are published for research and retrospective evaluation only. Lottery draws are random; model outputs do not guarantee future results.
 
-### Next-draw forecast
+### Next-draw forecast — draw **#01421**
 
-> The stored forecast targets draw **#01420**, but the latest result loaded is **#01420**. The forecast is not presented as upcoming; the next expected target is **#01421**.
+- **Target date:** 2026-11-07 (Saturday)
+- **Data cutoff:** draw #01420 dated 2026-11-05
+- **Generated (UTC):** 2026-11-06T20:03:34.454771+00:00
+
+These are research forecasts, not guaranteed outcomes. The special number is excluded from model features.
+
+#### Single-line model predictions
+
+| Model | Predicted numbers |
+|---|---|
+| Bayesian | 07, 11, 16, 18, 22, 41 |
+| ExponentialDecay | 07, 11, 18, 22, 27, 31 |
+| LogisticProbability | 07, 14, 16, 22, 32, 53 |
+| RankEnsemble | 07, 11, 14, 16, 18, 22 |
+
+<details>
+<summary>PortfolioEnsemble — 30 ticket combinations</summary>
+
+| # | Predicted combination |
+|---:|---|
+| 1 | 07, 11, 16, 18, 22, 31 |
+| 2 | 07, 14, 16, 22, 32, 53 |
+| 3 | 09, 13, 14, 27, 41, 55 |
+| 4 | 01, 13, 14, 18, 23, 24 |
+| 5 | 08, 14, 25, 27, 31, 39 |
+| 6 | 05, 08, 13, 20, 22, 45 |
+| 7 | 01, 08, 18, 21, 34, 50 |
+| 8 | 05, 07, 30, 38, 39, 55 |
+| 9 | 22, 23, 27, 28, 34, 38 |
+| 10 | 08, 18, 29, 30, 41, 53 |
+| 11 | 11, 18, 23, 25, 29, 45 |
+| 12 | 11, 13, 31, 38, 50, 53 |
+| 13 | 01, 09, 11, 22, 39, 41 |
+| 14 | 16, 20, 21, 24, 27, 29 |
+| 15 | 05, 09, 18, 27, 32, 50 |
+| 16 | 07, 20, 28, 32, 41, 55 |
+| 17 | 22, 24, 25, 30, 50, 55 |
+| 18 | 13, 16, 18, 34, 39, 55 |
+| 19 | 07, 09, 18, 20, 25, 38 |
+| 20 | 09, 16, 21, 23, 30, 31 |
+| 21 | 14, 18, 21, 22, 41, 45 |
+| 22 | 01, 05, 14, 28, 31, 55 |
+| 23 | 01, 22, 29, 31, 32, 55 |
+| 24 | 05, 11, 16, 25, 34, 41 |
+| 25 | 07, 13, 27, 30, 45, 53 |
+| 26 | 07, 08, 23, 24, 39, 50 |
+| 27 | 07, 09, 14, 21, 29, 34 |
+| 28 | 01, 07, 13, 21, 25, 28 |
+| 29 | 07, 24, 31, 34, 41, 45 |
+| 30 | 01, 07, 08, 11, 23, 27 |
+
+</details>
+
+
+<details>
+<summary>UnseenPortfolioEnsemble — 30 ticket combinations</summary>
+
+| # | Predicted combination |
+|---:|---|
+| 1 | 07, 11, 16, 18, 22, 31 |
+| 2 | 07, 14, 16, 22, 32, 53 |
+| 3 | 09, 13, 14, 27, 41, 55 |
+| 4 | 01, 13, 14, 18, 23, 24 |
+| 5 | 08, 14, 25, 27, 31, 39 |
+| 6 | 05, 08, 13, 20, 22, 45 |
+| 7 | 01, 08, 18, 21, 34, 50 |
+| 8 | 05, 07, 30, 38, 39, 55 |
+| 9 | 22, 23, 27, 28, 34, 38 |
+| 10 | 08, 18, 29, 30, 41, 53 |
+| 11 | 11, 18, 23, 25, 29, 45 |
+| 12 | 11, 13, 31, 38, 50, 53 |
+| 13 | 01, 09, 11, 22, 39, 41 |
+| 14 | 16, 20, 21, 24, 27, 29 |
+| 15 | 05, 09, 18, 27, 32, 50 |
+| 16 | 07, 20, 28, 32, 41, 55 |
+| 17 | 22, 24, 25, 30, 50, 55 |
+| 18 | 13, 16, 18, 34, 39, 55 |
+| 19 | 07, 09, 18, 20, 25, 38 |
+| 20 | 09, 16, 21, 23, 30, 31 |
+| 21 | 14, 18, 21, 22, 41, 45 |
+| 22 | 01, 05, 14, 28, 31, 55 |
+| 23 | 01, 22, 29, 31, 32, 55 |
+| 24 | 05, 11, 16, 25, 34, 41 |
+| 25 | 07, 13, 27, 30, 45, 53 |
+| 26 | 07, 08, 23, 24, 39, 50 |
+| 27 | 07, 09, 14, 21, 29, 34 |
+| 28 | 01, 07, 13, 21, 25, 28 |
+| 29 | 07, 24, 31, 34, 41, 45 |
+| 30 | 01, 07, 08, 11, 23, 27 |
+
+</details>
 
 ### Realized forecast results
 
-Completed forecasts: **16**; pending forecasts: **0**. A small historical sample does not establish predictive advantage.
+Completed forecasts: **16**; pending forecasts: **1**. A small historical sample does not establish predictive advantage.
 
 | Strategy | Draws | Tickets | Tickets with ≥3 matches | ≥3-match rate | Payout (VND) | Net (VND) | ROI |
 |---|---:|---:|---:|---:|---:|---:|---:|
