@@ -1,17 +1,18 @@
 # Power 6/55 Forecast Results
 
-- Evaluated draws: **18**
-- Pending forecasts: **1**
+- Evaluated draws: **19**
+- Pending forecasts: **0**
 
 | Strategy | Draws | Tickets | >=3 | >=3 rate | Gain (VND) | Net (VND) | ROI |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| PortfolioEnsemble | 18 | 540 | 10 | 1.85% | 500,000 | -4,900,000 | -90.74% |
-| UnseenPortfolioEnsemble | 18 | 540 | 10 | 1.85% | 500,000 | -4,900,000 | -90.74% |
+| PortfolioEnsemble | 19 | 570 | 10 | 1.75% | 500,000 | -5,200,000 | -91.23% |
+| UnseenPortfolioEnsemble | 19 | 570 | 10 | 1.75% | 500,000 | -5,200,000 | -91.23% |
 
 ## Latest evaluated draws
 
 | Draw | Date | Actual main | Special | Portfolio >=3 | Portfolio gain |
 |---:|---|---|---:|---:|---:|
+| 01423 | 2026-11-12 | [17, 25, 33, 34, 35, 36] | 48 | 0 | 0 |
 | 01422 | 2026-11-10 | [1, 2, 21, 38, 39, 51] | 12 | 0 | 0 |
 | 01421 | 2026-11-07 | [5, 19, 20, 26, 44, 53] | 39 | 0 | 0 |
 | 01420 | 2026-11-05 | [6, 20, 34, 41, 49, 52] | 36 | 0 | 0 |
@@ -21,77 +22,76 @@
 | 01416 | 2026-10-27 | [9, 18, 27, 28, 31, 35] | 50 | 0 | 0 |
 | 01415 | 2026-10-24 | [6, 7, 18, 41, 44, 50] | 53 | 0 | 0 |
 | 01414 | 2026-10-22 | [14, 19, 24, 31, 34, 42] | 37 | 0 | 0 |
-| 01413 | 2026-10-20 | [13, 20, 23, 30, 50, 55] | 45 | 1 | 50,000 |
 
-## Forecast numbers vs actual — draw 01422
+## Forecast numbers vs actual — draw 01423
 
-- Date: **2026-11-10**
-- Forecast generated (UTC): **2026-11-09T23:05:22.012978+00:00**
-- Actual main: **[1, 2, 21, 38, 39, 51]**
-- Actual special: **12**
+- Date: **2026-11-12**
+- Forecast generated (UTC): **2026-11-11T20:19:42.609601+00:00**
+- Actual main: **[17, 25, 33, 34, 35, 36]**
+- Actual special: **48**
 
 ### PortfolioEnsemble — 30 tickets
 
-1. **[7, 11, 16, 18, 22, 31]** — 0 main matches; prize 0 VND (none)
-2. **[7, 14, 18, 22, 27, 31]** — 0 main matches; prize 0 VND (none)
-3. **[5, 7, 9, 13, 24, 41]** — 0 main matches; prize 0 VND (none)
-4. **[8, 13, 20, 22, 23, 55]** — 0 main matches; prize 0 VND (none)
-5. **[1, 16, 27, 41, 53, 55]** — 1 main matches; prize 0 VND (none)
-6. **[13, 18, 25, 32, 39, 53]** — 1 main matches; prize 0 VND (none)
-7. **[1, 7, 20, 39, 45, 50]** — 2 main matches; prize 0 VND (none)
-8. **[7, 8, 21, 30, 34, 53]** — 1 main matches; prize 0 VND (none)
-9. **[1, 9, 22, 25, 28, 38]** — 2 main matches; prize 0 VND (none)
-10. **[18, 23, 28, 30, 41, 45]** — 0 main matches; prize 0 VND (none)
-11. **[7, 11, 26, 32, 38, 55]** — 1 main matches; prize 0 VND (none)
-12. **[5, 14, 22, 26, 45, 53]** — 0 main matches; prize 0 VND (none)
-13. **[1, 11, 13, 14, 21, 31]** — 2 main matches; prize 0 VND (none)
-14. **[9, 14, 16, 20, 32, 34]** — 0 main matches; prize 0 VND (none)
-15. **[1, 5, 8, 16, 18, 24]** — 1 main matches; prize 0 VND (none)
-16. **[7, 16, 23, 25, 27, 50]** — 0 main matches; prize 0 VND (none)
-17. **[11, 21, 22, 24, 39, 41]** — 2 main matches; prize 0 VND (none)
-18. **[5, 9, 30, 31, 39, 55]** — 1 main matches; prize 0 VND (none)
-19. **[9, 18, 21, 26, 27, 50]** — 1 main matches; prize 0 VND (none)
-20. **[7, 13, 14, 24, 28, 55]** — 0 main matches; prize 0 VND (none)
-21. **[22, 24, 30, 32, 34, 50]** — 0 main matches; prize 0 VND (none)
-22. **[8, 20, 25, 26, 31, 41]** — 0 main matches; prize 0 VND (none)
-23. **[5, 11, 18, 20, 34, 38]** — 1 main matches; prize 0 VND (none)
-24. **[5, 7, 21, 23, 32, 41]** — 1 main matches; prize 0 VND (none)
-25. **[8, 13, 16, 22, 38, 45]** — 1 main matches; prize 0 VND (none)
-26. **[23, 24, 27, 31, 38, 53]** — 1 main matches; prize 0 VND (none)
-27. **[18, 21, 24, 25, 45, 55]** — 1 main matches; prize 0 VND (none)
-28. **[7, 8, 9, 28, 39, 53]** — 1 main matches; prize 0 VND (none)
-29. **[1, 7, 20, 25, 26, 30]** — 1 main matches; prize 0 VND (none)
-30. **[16, 31, 34, 38, 41, 45]** — 1 main matches; prize 0 VND (none)
+1. **[8, 13, 16, 22, 39, 41]** — 0 main matches; prize 0 VND (none)
+2. **[1, 7, 11, 16, 18, 22]** — 0 main matches; prize 0 VND (none)
+3. **[8, 13, 22, 29, 34, 41]** — 1 main matches; prize 0 VND (none)
+4. **[9, 13, 20, 31, 38, 53]** — 0 main matches; prize 0 VND (none)
+5. **[5, 7, 14, 31, 41, 51]** — 0 main matches; prize 0 VND (none)
+6. **[7, 32, 34, 39, 53, 55]** — 1 main matches; prize 0 VND (none)
+7. **[9, 22, 24, 27, 32, 43]** — 0 main matches; prize 0 VND (none)
+8. **[21, 22, 30, 40, 51, 55]** — 0 main matches; prize 0 VND (none)
+9. **[14, 16, 30, 33, 34, 38]** — 2 main matches; prize 0 VND (none)
+10. **[9, 16, 21, 32, 41, 45]** — 0 main matches; prize 0 VND (none)
+11. **[5, 18, 29, 33, 39, 45]** — 1 main matches; prize 0 VND (none)
+12. **[16, 18, 29, 31, 43, 55]** — 0 main matches; prize 0 VND (none)
+13. **[7, 13, 20, 27, 33, 40]** — 1 main matches; prize 0 VND (none)
+14. **[1, 8, 43, 45, 51, 53]** — 0 main matches; prize 0 VND (none)
+15. **[1, 11, 27, 38, 41, 55]** — 0 main matches; prize 0 VND (none)
+16. **[5, 8, 18, 20, 24, 34]** — 1 main matches; prize 0 VND (none)
+17. **[9, 16, 24, 27, 39, 51]** — 0 main matches; prize 0 VND (none)
+18. **[5, 11, 13, 30, 31, 32]** — 0 main matches; prize 0 VND (none)
+19. **[11, 24, 29, 40, 41, 53]** — 0 main matches; prize 0 VND (none)
+20. **[7, 8, 21, 24, 38, 39]** — 0 main matches; prize 0 VND (none)
+21. **[1, 7, 8, 9, 30, 43]** — 0 main matches; prize 0 VND (none)
+22. **[1, 5, 13, 16, 21, 53]** — 0 main matches; prize 0 VND (none)
+23. **[18, 20, 30, 39, 41, 43]** — 0 main matches; prize 0 VND (none)
+24. **[8, 9, 11, 14, 18, 40]** — 0 main matches; prize 0 VND (none)
+25. **[11, 22, 32, 33, 38, 51]** — 1 main matches; prize 0 VND (none)
+26. **[14, 21, 22, 27, 31, 53]** — 0 main matches; prize 0 VND (none)
+27. **[9, 22, 31, 40, 45, 55]** — 0 main matches; prize 0 VND (none)
+28. **[8, 16, 20, 29, 31, 32]** — 0 main matches; prize 0 VND (none)
+29. **[7, 13, 18, 22, 38, 41]** — 0 main matches; prize 0 VND (none)
+30. **[1, 14, 22, 29, 34, 39]** — 1 main matches; prize 0 VND (none)
 
 ### UnseenPortfolioEnsemble — 30 tickets
 
-1. **[7, 11, 16, 18, 22, 31]** — 0 main matches; prize 0 VND (none)
-2. **[7, 14, 18, 22, 27, 31]** — 0 main matches; prize 0 VND (none)
-3. **[5, 7, 9, 13, 24, 41]** — 0 main matches; prize 0 VND (none)
-4. **[8, 13, 20, 22, 23, 55]** — 0 main matches; prize 0 VND (none)
-5. **[1, 16, 27, 41, 53, 55]** — 1 main matches; prize 0 VND (none)
-6. **[13, 18, 25, 32, 39, 53]** — 1 main matches; prize 0 VND (none)
-7. **[1, 7, 20, 39, 45, 50]** — 2 main matches; prize 0 VND (none)
-8. **[7, 8, 21, 30, 34, 53]** — 1 main matches; prize 0 VND (none)
-9. **[1, 9, 22, 25, 28, 38]** — 2 main matches; prize 0 VND (none)
-10. **[18, 23, 28, 30, 41, 45]** — 0 main matches; prize 0 VND (none)
-11. **[7, 11, 26, 32, 38, 55]** — 1 main matches; prize 0 VND (none)
-12. **[5, 14, 22, 26, 45, 53]** — 0 main matches; prize 0 VND (none)
-13. **[1, 11, 13, 14, 21, 31]** — 2 main matches; prize 0 VND (none)
-14. **[9, 14, 16, 20, 32, 34]** — 0 main matches; prize 0 VND (none)
-15. **[1, 5, 8, 16, 18, 24]** — 1 main matches; prize 0 VND (none)
-16. **[7, 16, 23, 25, 27, 50]** — 0 main matches; prize 0 VND (none)
-17. **[11, 21, 22, 24, 39, 41]** — 2 main matches; prize 0 VND (none)
-18. **[5, 9, 30, 31, 39, 55]** — 1 main matches; prize 0 VND (none)
-19. **[9, 18, 21, 26, 27, 50]** — 1 main matches; prize 0 VND (none)
-20. **[7, 13, 14, 24, 28, 55]** — 0 main matches; prize 0 VND (none)
-21. **[22, 24, 30, 32, 34, 50]** — 0 main matches; prize 0 VND (none)
-22. **[8, 20, 25, 26, 31, 41]** — 0 main matches; prize 0 VND (none)
-23. **[5, 11, 18, 20, 34, 38]** — 1 main matches; prize 0 VND (none)
-24. **[5, 7, 21, 23, 32, 41]** — 1 main matches; prize 0 VND (none)
-25. **[8, 13, 16, 22, 38, 45]** — 1 main matches; prize 0 VND (none)
-26. **[23, 24, 27, 31, 38, 53]** — 1 main matches; prize 0 VND (none)
-27. **[18, 21, 24, 25, 45, 55]** — 1 main matches; prize 0 VND (none)
-28. **[7, 8, 9, 28, 39, 53]** — 1 main matches; prize 0 VND (none)
-29. **[1, 7, 20, 25, 26, 30]** — 1 main matches; prize 0 VND (none)
-30. **[16, 31, 34, 38, 41, 45]** — 1 main matches; prize 0 VND (none)
+1. **[8, 13, 16, 22, 39, 41]** — 0 main matches; prize 0 VND (none)
+2. **[1, 7, 11, 16, 18, 22]** — 0 main matches; prize 0 VND (none)
+3. **[8, 13, 22, 29, 34, 41]** — 1 main matches; prize 0 VND (none)
+4. **[9, 13, 20, 31, 38, 53]** — 0 main matches; prize 0 VND (none)
+5. **[5, 7, 14, 31, 41, 51]** — 0 main matches; prize 0 VND (none)
+6. **[7, 32, 34, 39, 53, 55]** — 1 main matches; prize 0 VND (none)
+7. **[9, 22, 24, 27, 32, 43]** — 0 main matches; prize 0 VND (none)
+8. **[21, 22, 30, 40, 51, 55]** — 0 main matches; prize 0 VND (none)
+9. **[14, 16, 30, 33, 34, 38]** — 2 main matches; prize 0 VND (none)
+10. **[9, 16, 21, 32, 41, 45]** — 0 main matches; prize 0 VND (none)
+11. **[5, 18, 29, 33, 39, 45]** — 1 main matches; prize 0 VND (none)
+12. **[16, 18, 29, 31, 43, 55]** — 0 main matches; prize 0 VND (none)
+13. **[7, 13, 20, 27, 33, 40]** — 1 main matches; prize 0 VND (none)
+14. **[1, 8, 43, 45, 51, 53]** — 0 main matches; prize 0 VND (none)
+15. **[1, 11, 27, 38, 41, 55]** — 0 main matches; prize 0 VND (none)
+16. **[5, 8, 18, 20, 24, 34]** — 1 main matches; prize 0 VND (none)
+17. **[9, 16, 24, 27, 39, 51]** — 0 main matches; prize 0 VND (none)
+18. **[5, 11, 13, 30, 31, 32]** — 0 main matches; prize 0 VND (none)
+19. **[11, 24, 29, 40, 41, 53]** — 0 main matches; prize 0 VND (none)
+20. **[7, 8, 21, 24, 38, 39]** — 0 main matches; prize 0 VND (none)
+21. **[1, 7, 8, 9, 30, 43]** — 0 main matches; prize 0 VND (none)
+22. **[1, 5, 13, 16, 21, 53]** — 0 main matches; prize 0 VND (none)
+23. **[18, 20, 30, 39, 41, 43]** — 0 main matches; prize 0 VND (none)
+24. **[8, 9, 11, 14, 18, 40]** — 0 main matches; prize 0 VND (none)
+25. **[11, 22, 32, 33, 38, 51]** — 1 main matches; prize 0 VND (none)
+26. **[14, 21, 22, 27, 31, 53]** — 0 main matches; prize 0 VND (none)
+27. **[9, 22, 31, 40, 45, 55]** — 0 main matches; prize 0 VND (none)
+28. **[8, 16, 20, 29, 31, 32]** — 0 main matches; prize 0 VND (none)
+29. **[7, 13, 18, 22, 38, 41]** — 0 main matches; prize 0 VND (none)
+30. **[1, 14, 22, 29, 34, 39]** — 1 main matches; prize 0 VND (none)
