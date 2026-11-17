@@ -19360,39 +19360,1005 @@
           "prize_type": "none"
         }
       }
+    },
+    {
+      "target_draw_id": "01425",
+      "target_draw_date": "2026-11-17",
+      "forecast_generated_at_utc": "2026-11-16T22:58:49.321536+00:00",
+      "actual": {
+        "id": "01425",
+        "date": "2026-11-17",
+        "main": [
+          6,
+          20,
+          36,
+          41,
+          49,
+          52
+        ],
+        "special": 34
+      },
+      "portfolio_ensemble": {
+        "forecast_numbers": [
+          [
+            1,
+            5,
+            7,
+            18,
+            22,
+            31
+          ],
+          [
+            5,
+            7,
+            11,
+            16,
+            18,
+            22
+          ],
+          [
+            16,
+            22,
+            30,
+            31,
+            32,
+            55
+          ],
+          [
+            7,
+            14,
+            20,
+            25,
+            39,
+            45
+          ],
+          [
+            9,
+            13,
+            18,
+            27,
+            28,
+            41
+          ],
+          [
+            5,
+            9,
+            14,
+            34,
+            38,
+            55
+          ],
+          [
+            18,
+            23,
+            24,
+            33,
+            38,
+            39
+          ],
+          [
+            7,
+            8,
+            24,
+            28,
+            31,
+            32
+          ],
+          [
+            2,
+            18,
+            25,
+            29,
+            53,
+            55
+          ],
+          [
+            1,
+            13,
+            29,
+            30,
+            31,
+            33
+          ],
+          [
+            2,
+            5,
+            8,
+            16,
+            27,
+            38
+          ],
+          [
+            1,
+            14,
+            18,
+            32,
+            41,
+            45
+          ],
+          [
+            2,
+            11,
+            20,
+            23,
+            31,
+            41
+          ],
+          [
+            5,
+            9,
+            11,
+            30,
+            39,
+            53
+          ],
+          [
+            8,
+            13,
+            16,
+            18,
+            20,
+            34
+          ],
+          [
+            9,
+            14,
+            16,
+            28,
+            31,
+            39
+          ],
+          [
+            5,
+            25,
+            28,
+            33,
+            34,
+            45
+          ],
+          [
+            9,
+            18,
+            20,
+            24,
+            25,
+            31
+          ],
+          [
+            14,
+            22,
+            24,
+            27,
+            29,
+            41
+          ],
+          [
+            7,
+            13,
+            23,
+            27,
+            45,
+            55
+          ],
+          [
+            1,
+            5,
+            20,
+            28,
+            41,
+            55
+          ],
+          [
+            18,
+            27,
+            30,
+            32,
+            34,
+            39
+          ],
+          [
+            1,
+            2,
+            13,
+            22,
+            25,
+            39
+          ],
+          [
+            7,
+            8,
+            9,
+            25,
+            33,
+            41
+          ],
+          [
+            7,
+            29,
+            32,
+            34,
+            38,
+            53
+          ],
+          [
+            1,
+            2,
+            16,
+            24,
+            30,
+            45
+          ],
+          [
+            7,
+            11,
+            18,
+            22,
+            28,
+            38
+          ],
+          [
+            5,
+            13,
+            14,
+            23,
+            25,
+            31
+          ],
+          [
+            1,
+            7,
+            9,
+            16,
+            27,
+            53
+          ],
+          [
+            11,
+            31,
+            39,
+            41,
+            45,
+            55
+          ]
+        ],
+        "tickets": 30,
+        "tickets_ge3": 0,
+        "tickets_ge3_rate_pct": 0.0,
+        "tickets_ge4": 0,
+        "tickets_ge5": 0,
+        "jackpot1_hits": 0,
+        "jackpot2_hits": 0,
+        "match_histogram": {
+          "0": 20,
+          "1": 8,
+          "2": 2,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0
+        },
+        "gain_vnd": 0,
+        "cost_vnd": 300000,
+        "net_profit_vnd": -300000,
+        "roi_pct": -100.0,
+        "ticket_results": [
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": true,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 2,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": true,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": true,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 2,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": true,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": true,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          }
+        ]
+      },
+      "unseen_portfolio_ensemble": {
+        "forecast_numbers": [
+          [
+            1,
+            5,
+            7,
+            18,
+            22,
+            31
+          ],
+          [
+            5,
+            7,
+            11,
+            16,
+            18,
+            22
+          ],
+          [
+            16,
+            22,
+            30,
+            31,
+            32,
+            55
+          ],
+          [
+            7,
+            14,
+            20,
+            25,
+            39,
+            45
+          ],
+          [
+            9,
+            13,
+            18,
+            27,
+            28,
+            41
+          ],
+          [
+            5,
+            9,
+            14,
+            34,
+            38,
+            55
+          ],
+          [
+            18,
+            23,
+            24,
+            33,
+            38,
+            39
+          ],
+          [
+            7,
+            8,
+            24,
+            28,
+            31,
+            32
+          ],
+          [
+            2,
+            18,
+            25,
+            29,
+            53,
+            55
+          ],
+          [
+            1,
+            13,
+            29,
+            30,
+            31,
+            33
+          ],
+          [
+            2,
+            5,
+            8,
+            16,
+            27,
+            38
+          ],
+          [
+            1,
+            14,
+            18,
+            32,
+            41,
+            45
+          ],
+          [
+            2,
+            11,
+            20,
+            23,
+            31,
+            41
+          ],
+          [
+            5,
+            9,
+            11,
+            30,
+            39,
+            53
+          ],
+          [
+            8,
+            13,
+            16,
+            18,
+            20,
+            34
+          ],
+          [
+            9,
+            14,
+            16,
+            28,
+            31,
+            39
+          ],
+          [
+            5,
+            25,
+            28,
+            33,
+            34,
+            45
+          ],
+          [
+            9,
+            18,
+            20,
+            24,
+            25,
+            31
+          ],
+          [
+            14,
+            22,
+            24,
+            27,
+            29,
+            41
+          ],
+          [
+            7,
+            13,
+            23,
+            27,
+            45,
+            55
+          ],
+          [
+            1,
+            5,
+            20,
+            28,
+            41,
+            55
+          ],
+          [
+            18,
+            27,
+            30,
+            32,
+            34,
+            39
+          ],
+          [
+            1,
+            2,
+            13,
+            22,
+            25,
+            39
+          ],
+          [
+            7,
+            8,
+            9,
+            25,
+            33,
+            41
+          ],
+          [
+            7,
+            29,
+            32,
+            34,
+            38,
+            53
+          ],
+          [
+            1,
+            2,
+            16,
+            24,
+            30,
+            45
+          ],
+          [
+            7,
+            11,
+            18,
+            22,
+            28,
+            38
+          ],
+          [
+            5,
+            13,
+            14,
+            23,
+            25,
+            31
+          ],
+          [
+            1,
+            7,
+            9,
+            16,
+            27,
+            53
+          ],
+          [
+            11,
+            31,
+            39,
+            41,
+            45,
+            55
+          ]
+        ],
+        "tickets": 30,
+        "tickets_ge3": 0,
+        "tickets_ge3_rate_pct": 0.0,
+        "tickets_ge4": 0,
+        "tickets_ge5": 0,
+        "jackpot1_hits": 0,
+        "jackpot2_hits": 0,
+        "match_histogram": {
+          "0": 20,
+          "1": 8,
+          "2": 2,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0
+        },
+        "gain_vnd": 0,
+        "cost_vnd": 300000,
+        "net_profit_vnd": -300000,
+        "roi_pct": -100.0,
+        "ticket_results": [
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": true,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 2,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": true,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": true,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 2,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": true,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": true,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 0,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          },
+          {
+            "main_matches": 1,
+            "special_match": false,
+            "prize_vnd": 0,
+            "prize_type": "none"
+          }
+        ]
+      },
+      "single_models": {
+        "Bayesian": {
+          "forecast_numbers": [
+            7,
+            18,
+            22,
+            5,
+            16,
+            11
+          ],
+          "main_matches": 0,
+          "special_match": false,
+          "prize_vnd": 0,
+          "prize_type": "none"
+        },
+        "ExponentialDecay": {
+          "forecast_numbers": [
+            1,
+            5,
+            7,
+            11,
+            18,
+            27
+          ],
+          "main_matches": 0,
+          "special_match": false,
+          "prize_vnd": 0,
+          "prize_type": "none"
+        },
+        "LogisticProbability": {
+          "forecast_numbers": [
+            22,
+            16,
+            55,
+            32,
+            31,
+            30
+          ],
+          "main_matches": 0,
+          "special_match": false,
+          "prize_vnd": 0,
+          "prize_type": "none"
+        },
+        "RankEnsemble": {
+          "forecast_numbers": [
+            7,
+            1,
+            5,
+            22,
+            18,
+            16
+          ],
+          "main_matches": 0,
+          "special_match": false,
+          "prize_vnd": 0,
+          "prize_type": "none"
+        }
+      }
     }
   ],
-  "pending_target_draw_ids": [
-    "01425"
-  ],
+  "pending_target_draw_ids": [],
   "summary": {
     "PortfolioEnsemble": {
-      "draws_evaluated": 20,
-      "tickets": 600,
+      "draws_evaluated": 21,
+      "tickets": 630,
       "tickets_ge3": 10,
-      "tickets_ge3_rate_pct": 1.6666666666666667,
+      "tickets_ge3_rate_pct": 1.5873015873015872,
       "tickets_ge4": 0,
       "tickets_ge5": 0,
       "jackpot1_hits": 0,
       "jackpot2_hits": 0,
       "gain_vnd": 500000,
-      "cost_vnd": 6000000,
-      "net_profit_vnd": -5500000,
-      "roi_pct": -91.66666666666666
+      "cost_vnd": 6300000,
+      "net_profit_vnd": -5800000,
+      "roi_pct": -92.06349206349206
     },
     "UnseenPortfolioEnsemble": {
-      "draws_evaluated": 20,
-      "tickets": 600,
+      "draws_evaluated": 21,
+      "tickets": 630,
       "tickets_ge3": 10,
-      "tickets_ge3_rate_pct": 1.6666666666666667,
+      "tickets_ge3_rate_pct": 1.5873015873015872,
       "tickets_ge4": 0,
       "tickets_ge5": 0,
       "jackpot1_hits": 0,
       "jackpot2_hits": 0,
       "gain_vnd": 500000,
-      "cost_vnd": 6000000,
-      "net_profit_vnd": -5500000,
-      "roi_pct": -91.66666666666666
+      "cost_vnd": 6300000,
+      "net_profit_vnd": -5800000,
+      "roi_pct": -92.06349206349206
     }
   },
   "method": {
