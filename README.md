@@ -2420,11 +2420,11 @@ Ticket cost is assumed to be 10,000 VND. Payouts use the configured prize values
 | 32 | 2026-09-15 | 70 |
 | 48 | 2026-09-26 | 59 |
 | 4 | 2026-10-01 | 54 |
-| 16 | 2026-10-17 | 38 |
 | 37 | 2026-10-17 | 38 |
 | 11 | 2026-10-17 | 38 |
+| 16 | 2026-10-17 | 38 |
 | 30 | 2026-10-20 | 35 |
-| 24 | 2026-10-22 | 33 |
+| 14 | 2026-10-22 | 33 |
 
 ### 📆 Số ngày từ lần xuất hiện cuối cùng (Days Since Last Appearance - All Numbers)
 | result | last_date | days_since |
